@@ -1,13 +1,48 @@
-import { View, Text } from "react-native";
+import { View } from "react-native";
+import { APIProvider, Map, AdvancedMarker, Pin } from "@vis.gl/react-google-maps";
 import { colors } from "../theme";
-import type { Place } from "../domain/types";
+import type { Place, PlaceState } from "../domain/types";
 
-// Web uses Google Maps JavaScript (react-native-maps does not run on web).
-// Stubbed for v1 iOS-first. Implemented in the web map task.
-export function MapCanvas(_: { region: any; places: Place[]; onSelect: (p: Place) => void }) {
+// Web map. react-native-maps does not run on web, so the web build uses Google Maps
+// JavaScript (required: Google content must display on a Google map). Three state pins
+// match the native PlacePin colours. Needs EXPO_PUBLIC_MAPS_SDK_KEY (a Maps JavaScript key)
+// and the web runtime (react-dom, react-native-web), enabled as a deliberate step.
+const pinBg: Record<PlaceState, string> = {
+  go: colors.accent,
+  been: colors.been,
+  avoid: colors.avoid,
+};
+
+export function MapCanvas({
+  region, places, onSelect,
+}: {
+  region: { latitude: number; longitude: number; latitudeDelta: number; longitudeDelta: number };
+  places: Place[];
+  onSelect: (p: Place) => void;
+}) {
+  const apiKey = process.env.EXPO_PUBLIC_MAPS_SDK_KEY ?? "";
   return (
-    <View style={{ flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: colors.canvas }}>
-      <Text style={{ color: colors.muted }}>Map on web is wired in the web task.</Text>
+    <View style={{ flex: 1 }}>
+      <APIProvider apiKey={apiKey}>
+        <Map
+          style={{ width: "100%", height: "100%" }}
+          defaultCenter={{ lat: region.latitude, lng: region.longitude }}
+          defaultZoom={14}
+          mapId="hungr-web-map"
+          disableDefaultUI
+          gestureHandling="greedy"
+        >
+          {places.map((p) => (
+            <AdvancedMarker key={p.placeId} position={{ lat: p.lat, lng: p.lng }} onClick={() => onSelect(p)}>
+              <Pin
+                background={p.state ? pinBg[p.state] : colors.muted}
+                borderColor={colors.ink}
+                glyphColor={colors.onAccent}
+              />
+            </AdvancedMarker>
+          ))}
+        </Map>
+      </APIProvider>
     </View>
   );
 }
