@@ -409,8 +409,9 @@ Deno.test("user_places is isolated for read and write", async () => {
   const a = await makeUser(`a_${crypto.randomUUID()}@t.dev`);
   const b = await makeUser(`b_${crypto.randomUUID()}@t.dev`);
 
-  // a seeds a place anchor and its own state
-  await a.client.from("places").upsert({ place_id: "p1" });
+  // a seeds a place anchor and its own state. The anchor is insert-or-ignore:
+  // places is immutable (place_id only), so on conflict do nothing (no UPDATE needed).
+  await a.client.from("places").upsert({ place_id: "p1" }, { onConflict: "place_id", ignoreDuplicates: true });
   const ins = await a.client.from("user_places").upsert({ user_id: a.uid, place_id: "p1", state: "go" });
   if (ins.error) throw new Error("a should be able to write its own user_places: " + ins.error.message);
 
@@ -426,6 +427,10 @@ Deno.test("user_places is isolated for read and write", async () => {
 Deno.test("profiles are private to their owner", async () => {
   const a = await makeUser(`pa_${crypto.randomUUID()}@t.dev`);
   const b = await makeUser(`pb_${crypto.randomUUID()}@t.dev`);
+  // Create a's own profile here so this test does not depend on the signup trigger
+  // (that trigger is added in a later task). This test only proves RLS isolation.
+  const created = await a.client.from("profiles").upsert({ id: a.uid, display_name: "A" });
+  if (created.error) throw new Error("a should be able to write its own profile: " + created.error.message);
   const mine = await a.client.from("profiles").select("*").eq("id", a.uid);
   if (!mine.data || mine.data.length !== 1) throw new Error("a should read its own profile");
   const theirs = await b.client.from("profiles").select("*").eq("id", a.uid);
@@ -435,7 +440,7 @@ Deno.test("profiles are private to their owner", async () => {
 Deno.test("reviews cannot be written as another user", async () => {
   const a = await makeUser(`ra_${crypto.randomUUID()}@t.dev`);
   const b = await makeUser(`rb_${crypto.randomUUID()}@t.dev`);
-  await a.client.from("places").upsert({ place_id: "p2" });
+  await a.client.from("places").upsert({ place_id: "p2" }, { onConflict: "place_id", ignoreDuplicates: true });
   const forged = await b.client.from("reviews").insert({ user_id: a.uid, place_id: "p2", body: "x", rating: 5 });
   if (!forged.error) throw new Error("RLS leak: b forged a review as a");
 });
@@ -495,6 +500,21 @@ create policy "own user_places" on user_places
 create policy "own reviews write" on reviews for insert with check (auth.uid() = user_id);
 create policy "own reviews update" on reviews for update using (auth.uid() = user_id);
 create policy "own tags write" on place_tags for insert with check (auth.uid() = created_by);
+
+-- Table privileges. RLS decides WHICH rows; these GRANTs decide table-level access.
+-- Supabase local does not auto-grant DML to anon/authenticated, so we grant explicitly.
+-- rate_limits intentionally gets no grant: only the security-definer function touches it.
+grant usage on schema public to anon, authenticated;
+
+-- public read tables: readable by everyone (anon and signed in)
+grant select on places, cuisines, place_cuisines, reviews, place_tags to anon, authenticated;
+
+-- writes are for signed in users only; the policies above restrict to their own rows
+grant insert on places to authenticated;
+grant select, insert, update on profiles to authenticated;
+grant select, insert, update, delete on user_places to authenticated;
+grant insert, update on reviews to authenticated;
+grant insert on place_tags to authenticated;
 ```
 
 - [ ] **Step 6: Apply and run the test to verify it passes**
@@ -1493,7 +1513,9 @@ export default function Map() {
   async function setState(placeId: string, state: PlaceState) {
     const { data } = await supabase.auth.getUser();
     if (!data.user) return;
-    await supabase.from("places").upsert({ place_id: placeId }); // anchor place_id only, no Google content
+    // anchor place_id only (no Google content). Insert-or-ignore: places is immutable,
+    // so on conflict do nothing, which needs only INSERT privilege.
+    await supabase.from("places").upsert({ place_id: placeId }, { onConflict: "place_id", ignoreDuplicates: true });
     await supabase.from("user_places").upsert({ user_id: data.user.id, place_id: placeId, state });
     setPlaces((ps) => ps.map((p) => (p.placeId === placeId ? { ...p, state } : p)));
     setSelected(null);
