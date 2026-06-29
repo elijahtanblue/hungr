@@ -1,21 +1,21 @@
-# TODOS — hungr
+# TODOS, hungr
 
 Captured from /plan-eng-review on 2026-06-29. See [docs/DESIGN.md](docs/DESIGN.md) for full context.
 
 ---
 
 ## 1. UGC cold-start / contribution flywheel  ← THE product risk
-**What:** Design how first-party reviews actually take off — what makes you + your ~50 friends
+**What:** Design how first-party reviews actually take off, what makes you + your ~50 friends
 write reviews in the app, and keep doing it.
 **Why:** The entire moat is owned content ("for the people, by the people"). Every shortcut to
 avoid building this supply (scraping, multi-source, ethnicity inference, creator-authority) was
 ruled out by law/ToS/missing data. Contribution is the only thing left, and it's unproven.
 **Pros:** Solving it unlocks the differentiator; nothing else matters if this fails.
-**Cons:** It's a product/growth problem, not an engineering one — no clean technical fix.
+**Cons:** It's a product/growth problem, not an engineering one, no clean technical fix.
 **Context:** Grounding-with-Maps bootstraps a non-empty app on day one, but the community
 section stays thin until people contribute. Ideas to explore: seeding (you write the first N),
 in-app reasons to post (your review "stands out"), friction-free capture, social pull (v2).
-**Depends on / blocked by:** Nothing — can prototype the contribution UX immediately.
+**Depends on / blocked by:** Nothing, can prototype the contribution UX immediately.
 
 ## 2. Pre-scale legal review
 **What:** Before production/scale, have a lawyer review Google Maps Platform ToS (esp.
@@ -26,7 +26,7 @@ sanctioned AI-over-Maps path; ethnicity = special-category data). These are load
 currently rest on research, not counsel.
 **Pros:** De-risks the whole product before real users/scale; cheap relative to a takedown.
 **Cons:** Costs a legal consult; not needed at the you+friends prototype stage.
-**Context:** No `plan-legal` skill exists in the gstack environment — this needs a human lawyer.
+**Context:** No `plan-legal` skill exists in the gstack environment, this needs a human lawyer.
 Key docs: Maps Platform Terms, Places API policies, Maps Grounding Lite terms, GDPR Art. 9,
 Australian Privacy Act (sensitive information).
 **Depends on / blocked by:** Do before any public launch or monetization.
@@ -51,9 +51,9 @@ Australia, and whether Google's `reviewSummary` field supports AU yet (appears N
 "display Google's own summary" fallback may be unavailable in AU.
 **Pros:** Confirms the bootstrap feature is actually available where you'll launch.
 **Cons:** Quick research/spike.
-**Context:** Google review summaries docs listed UK/US/India/LatAm/Japan — not Australia.
+**Context:** Google review summaries docs listed UK/US/India/LatAm/Japan, not Australia.
 Grounding-with-Maps is GA but verify AU + pricing tier.
-**Depends on / blocked by:** Nothing — do before building the Grounding feature.
+**Depends on / blocked by:** Nothing, do before building the Grounding feature.
 
 ## 5. V3 cuisine + venue inference (research)
 **What:** Fill gaps where neither Google place types nor first party tags know the cuisine or

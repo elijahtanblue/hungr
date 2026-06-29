@@ -1,4 +1,4 @@
-# UXMagic prompt — hungr Map screen (4 variations)
+# UXMagic prompt, hungr Map screen (4 variations)
 
 Paste everything in the code block below into UXMagic.
 
@@ -90,20 +90,20 @@ INTERACTION AND STATE NOTES
 
 THE FOUR VARIATIONS TO GENERATE (same features, same palette, different direction)
 
-Variation 1 — MAP IMMERSIVE: Full bleed map edge to edge. Search bar and cuisine chips
+Variation 1, MAP IMMERSIVE: Full bleed map edge to edge. Search bar and cuisine chips
 float over the map as translucent warm cards. The place sheet slides up from the bottom.
 Minimal chrome, the map and pins dominate.
 
-Variation 2 — LIST + MAP HYBRID (Beli style): Top 45 percent is the map, bottom 55 percent
+Variation 2, LIST + MAP HYBRID (Beli style): Top 45 percent is the map, bottom 55 percent
 is a scrollable ranked list of place cards (photo, name, rating, trust tags). The two stay
 in sync. Utility forward and information dense.
 
-Variation 3 — EDITORIAL WARM: The map is a rounded inset card near the top under a bold
+Variation 3, EDITORIAL WARM: The map is a rounded inset card near the top under a bold
 Fraunces greeting ("What are you hungry for?"). Below it, warm editorial sections like
 "Friends ate here this week" and "Trending in your cuisines" as photo led cards. Magazine
 feel, lots of warmth and whitespace.
 
-Variation 4 — POWER USER / DENSE: Compact and efficient. Persistent filter bar with many
+Variation 4, POWER USER / DENSE: Compact and efficient. Persistent filter bar with many
 chips visible, a tight map, and a slim results strip. For the daily foodie who wants speed
 and control, minimal decoration, maximum density.
 
