@@ -819,7 +819,7 @@ Deno.test("shapePlace keeps display-safe fields, derives a coarse cuisine, drops
 
 - [ ] **Step 2: Run it to verify it fails**
 
-Run: `deno test supabase/functions/places-proxy/index.test.ts`
+Run: `deno test --allow-net --allow-env supabase/functions/places-proxy/index.test.ts` (the flags are needed: the module imports from esm.sh and reads Deno.env at load)
 Expected: FAIL with "Module not found ./index.ts" or "shapePlace is not exported".
 
 - [ ] **Step 3: Write the Edge Function**
@@ -918,7 +918,7 @@ if (import.meta.main) Deno.serve(handler);
 
 - [ ] **Step 4: Run the test to verify it passes**
 
-Run: `deno test supabase/functions/places-proxy/index.test.ts`
+Run: `deno test --allow-net --allow-env supabase/functions/places-proxy/index.test.ts` (the flags are needed: the module imports from esm.sh and reads Deno.env at load)
 Expected: PASS (the `import.meta.main` guard means importing the module does not start a server).
 
 - [ ] **Step 5: Serve locally and smoke test**
@@ -966,7 +966,7 @@ Deno.test("shapeGrounded keeps the answer and required source links", () => {
 
 - [ ] **Step 2: Run it to verify it fails**
 
-Run: `deno test supabase/functions/grounding/index.test.ts`
+Run: `deno test --allow-net --allow-env supabase/functions/grounding/index.test.ts` (`--allow-env` is needed: the module reads Deno.env at load; `--allow-net` is harmless)
 Expected: FAIL (module or export missing).
 
 - [ ] **Step 3: Write the Edge Function**
@@ -1009,7 +1009,7 @@ Note: confirm the exact Grounding request shape against the current Gemini docs 
 
 - [ ] **Step 4: Run the test to verify it passes**
 
-Run: `deno test supabase/functions/grounding/index.test.ts`
+Run: `deno test --allow-net --allow-env supabase/functions/grounding/index.test.ts` (`--allow-env` is needed: the module reads Deno.env at load; `--allow-net` is harmless)
 Expected: PASS.
 
 - [ ] **Step 5: Commit**
