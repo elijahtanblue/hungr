@@ -51,6 +51,10 @@ export default async function handler(req: Request): Promise<Response> {
 
   // Fetch Google Places live, asking only for fields we are allowed to display.
   const { lat, lng, query } = await req.json();
+  if (typeof lat !== "number" || typeof lng !== "number" || !isFinite(lat) || !isFinite(lng)) {
+    return new Response("Invalid coordinates", { status: 400 });
+  }
+  const textQuery = typeof query === "string" && query.trim() ? query.slice(0, 120) : "food";
   const res = await fetch("https://places.googleapis.com/v1/places:searchText", {
     method: "POST",
     headers: {
@@ -60,10 +64,12 @@ export default async function handler(req: Request): Promise<Response> {
         "places.id,places.displayName,places.location,places.rating,places.primaryType,places.types,places.attributions",
     },
     body: JSON.stringify({
-      textQuery: query ?? "food",
+      textQuery,
       locationBias: { circle: { center: { latitude: lat, longitude: lng }, radius: 1500 } },
     }),
   });
+  // Never forward an upstream error body to the client (it can echo the request and leak detail).
+  if (!res.ok) return new Response("Upstream error", { status: 502 });
   const data = await res.json();
   const places = (data.places ?? []).map(shapePlace);
   return new Response(JSON.stringify({ places }), {

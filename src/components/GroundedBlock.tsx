@@ -6,7 +6,9 @@ import type { Grounded } from "../api/grounding";
 // The grounded AI answer. Its own block, with the required Google source links rendered
 // underneath. Slate world (Google sourced), never mixed with community content.
 export function GroundedBlock({ grounded }: { grounded: Grounded }) {
-  if (!grounded.text) return null;
+  // Attribution is mandatory on Google-sourced AI content. Never show the answer without its
+  // source links, so if grounding returned no sources we suppress the whole block.
+  if (!grounded.text || grounded.sources.length === 0) return null;
   return (
     <View style={s.block}>
       <View style={s.headRow}>
@@ -14,16 +16,14 @@ export function GroundedBlock({ grounded }: { grounded: Grounded }) {
         <Text style={s.heading}>About this place</Text>
       </View>
       <Text style={s.text}>{grounded.text}</Text>
-      {grounded.sources.length > 0 && (
-        <View style={s.sources}>
-          <Text style={s.sourcesLabel}>Sources</Text>
-          {grounded.sources.map((url, i) => (
-            <Pressable key={i} onPress={() => Linking.openURL(url)} accessibilityRole="link">
-              <Text style={s.link} numberOfLines={1}>{url}</Text>
-            </Pressable>
-          ))}
-        </View>
-      )}
+      <View style={s.sources}>
+        <Text style={s.sourcesLabel}>Sources</Text>
+        {grounded.sources.map((url, i) => (
+          <Pressable key={i} onPress={() => Linking.openURL(url)} accessibilityRole="link">
+            <Text style={s.link} numberOfLines={1}>{url}</Text>
+          </Pressable>
+        ))}
+      </View>
       <Text style={s.attribution}>AI summary grounded in Google Maps</Text>
     </View>
   );

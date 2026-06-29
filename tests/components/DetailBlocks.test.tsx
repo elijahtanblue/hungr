@@ -24,6 +24,11 @@ test("GroundedBlock shows the answer and its source link", async () => {
   expect(screen.getByText("https://maps.google.com/?cid=1")).toBeTruthy();
 });
 
+test("GroundedBlock renders nothing without sources, so AI content is never unattributed", async () => {
+  await render(<GroundedBlock grounded={{ text: "Known for mapo tofu.", sources: [] }} />);
+  expect(screen.queryByText("Known for mapo tofu.")).toBeNull();
+});
+
 test("CommunityBlock shows a warm empty state when there is nothing yet", async () => {
   await render(<CommunityBlock reviews={[]} tags={[]} />);
   expect(screen.getByText("No community reviews yet. Be the first to add one.")).toBeTruthy();

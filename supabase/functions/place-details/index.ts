@@ -52,13 +52,19 @@ export default async function handler(req: Request): Promise<Response> {
   if (blocked) return blocked;
 
   const { placeId } = await req.json();
-  const res = await fetch(`https://places.googleapis.com/v1/places/${placeId}`, {
+  // Validate before interpolating into the URL: a place_id is a safe token. This prevents
+  // path traversal or reaching other Google endpoints with the secret key attached.
+  if (typeof placeId !== "string" || !/^[A-Za-z0-9_-]+$/.test(placeId)) {
+    return new Response("Invalid placeId", { status: 400 });
+  }
+  const res = await fetch(`https://places.googleapis.com/v1/places/${encodeURIComponent(placeId)}`, {
     headers: {
       "X-Goog-Api-Key": KEY,
       "X-Goog-FieldMask":
         "id,displayName,rating,userRatingCount,priceLevel,formattedAddress,googleMapsUri,reviews,primaryType,types",
     },
   });
+  if (!res.ok) return new Response("Upstream error", { status: 502 });
   const data = await res.json();
   return new Response(JSON.stringify(shapePlaceDetails(data)), {
     headers: { "Content-Type": "application/json" },

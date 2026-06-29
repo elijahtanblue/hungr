@@ -8,8 +8,14 @@ const KEY = Deno.env.get("GEMINI_KEY")!;
 const MAX_PER_MIN = 20;
 
 export function shapeGrounded(raw: any): { text: string; sources: string[] } {
-  const text = raw.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
-  const sources = raw.groundingMetadata?.sourceLinks ?? [];
+  const candidate = raw.candidates?.[0];
+  const text = candidate?.content?.parts?.[0]?.text ?? "";
+  // Grounding metadata lives on the candidate, not the top level. Source URIs come from
+  // groundingChunks (web.uri for search, maps.uri / retrievedContext.uri for Maps grounding).
+  const chunks = candidate?.groundingMetadata?.groundingChunks ?? [];
+  const sources: string[] = chunks
+    .map((c: any) => c?.web?.uri ?? c?.maps?.uri ?? c?.retrievedContext?.uri)
+    .filter((u: unknown): u is string => typeof u === "string");
   return { text, sources };
 }
 
@@ -29,6 +35,7 @@ export default async function handler(req: Request): Promise<Response> {
       }),
     },
   );
+  if (!res.ok) return new Response("Upstream error", { status: 502 });
   const data = await res.json();
   return new Response(JSON.stringify(shapeGrounded(data)), {
     headers: { "Content-Type": "application/json" },
