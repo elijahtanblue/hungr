@@ -1,0 +1,14 @@
+# E2E: the sign-in screen renders and can request a magic link.
+# Runnable once the app is built on a simulator. See .maestro/README.md.
+appId: app.usehungr
+name: Sign in screen and magic link
+---
+- launchApp:
+    clearState: true
+- assertVisible: "hungr"
+- assertVisible: "Find food worth the trip."
+- assertVisible: "Continue with Google"
+- tapOn: "you@email.com"
+- inputText: "test@usehungr.app"
+- tapOn: "Email me a link"
+- assertVisible: "Check your inbox"

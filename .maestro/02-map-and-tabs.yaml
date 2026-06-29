@@ -1,0 +1,32 @@
+# E2E: once signed in, the core surfaces work: tabs navigate, the preferences sheet sets
+# taste, and the Find food near me popup appears.
+#
+# REQUIRES AN AUTHENTICATED SESSION. Magic-link sign-in cannot be completed inside Maestro
+# (it needs an email click). Before this flow, get a session by one of:
+#   - signing in once manually on the simulator (the session persists via AsyncStorage), or
+#   - injecting tokens via a deep link (hungr://...) in a setup step, or
+#   - a dev-only email+password test account.
+# See .maestro/README.md.
+appId: app.usehungr
+name: Map, preferences, and tabs
+---
+- launchApp
+# Map is the default tab. Open the taste preferences sheet from the note icon.
+- assertVisible:
+    id: "Taste preferences"
+- tapOn:
+    id: "Taste preferences"
+- assertVisible: "Your taste"
+- tapOn: "Avoid"          # avoid the first cuisine
+- tapOn: "Done"
+# Find food near me popup.
+- tapOn: "Find food near me"
+- assertVisible: "Show me"
+- tapOn: "Show me"
+# Bottom tabs.
+- tapOn: "Friends"
+- assertVisible: "No check-ins yet"
+- tapOn: "Trends"
+- assertVisible: "Near me"
+- tapOn: "Account"
+- assertVisible: "Sign out"
