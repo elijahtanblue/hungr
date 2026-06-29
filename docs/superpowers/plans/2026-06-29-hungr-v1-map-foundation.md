@@ -1180,7 +1180,7 @@ import { useDebouncedValue } from "../../src/hooks/useDebouncedValue";
 jest.useFakeTimers();
 
 test("debounced value updates only after the delay", async () => {
-  const r = await renderHook(({ v }) => useDebouncedValue(v, 300), {
+  const r = await renderHook(({ v }: { v: string }) => useDebouncedValue(v, 300), {
     initialProps: { v: "a" },
   });
   expect(r.result.current).toBe("a");
