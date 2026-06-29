@@ -1,5 +1,8 @@
 # hungr, Setup and Guardrails
 
+> New to this, or setting it up for the first time? Read `docs/GETTING-STARTED.md` first. It is
+> the plain-language, step-by-step walkthrough. This file is the short technical checklist.
+
 Pre-build checklist. Work through this before and during v1. The stack is locked: Expo
 (React Native, TypeScript), Supabase (Postgres, Auth, Storage, Edge Functions), Google
 Places plus Gemini Grounding through a server proxy, Google Maps basemap. See `DESIGN.md`
