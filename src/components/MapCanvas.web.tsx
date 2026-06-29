@@ -13,12 +13,15 @@ const pinBg: Record<PlaceState, string> = {
   avoid: colors.avoid,
 };
 
+type Region = { latitude: number; longitude: number; latitudeDelta: number; longitudeDelta: number };
+
 export function MapCanvas({
-  region, places, onSelect,
+  region, places, onSelect, onRegionChange,
 }: {
-  region: { latitude: number; longitude: number; latitudeDelta: number; longitudeDelta: number };
+  region: Region;
   places: Place[];
   onSelect: (p: Place) => void;
+  onRegionChange?: (region: Region) => void;
 }) {
   const apiKey = process.env.EXPO_PUBLIC_MAPS_SDK_KEY ?? "";
   return (
@@ -31,6 +34,16 @@ export function MapCanvas({
           mapId="hungr-web-map"
           disableDefaultUI
           gestureHandling="greedy"
+          onCameraChanged={
+            onRegionChange
+              ? (ev) => onRegionChange({
+                  latitude: ev.detail.center.lat,
+                  longitude: ev.detail.center.lng,
+                  latitudeDelta: region.latitudeDelta,
+                  longitudeDelta: region.longitudeDelta,
+                })
+              : undefined
+          }
         >
           {places.map((p) => (
             <AdvancedMarker key={p.placeId} position={{ lat: p.lat, lng: p.lng }} onClick={() => onSelect(p)}>

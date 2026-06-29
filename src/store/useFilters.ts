@@ -17,10 +17,24 @@ type FilterState = {
 export const useFilters = create<FilterState>((set) => ({
   selected: [],
   suppressed: [],
+  // Selecting and suppressing are mutually exclusive: a cuisine is never in both lists,
+  // otherwise suppression would silently hide a cuisine the user explicitly filtered to.
   toggleSelected: (c) =>
-    set((s) => ({ selected: s.selected.includes(c) ? s.selected.filter((x) => x !== c) : [...s.selected, c] })),
+    set((s) => {
+      const on = s.selected.includes(c);
+      return {
+        selected: on ? s.selected.filter((x) => x !== c) : [...s.selected, c],
+        suppressed: on ? s.suppressed : s.suppressed.filter((x) => x !== c),
+      };
+    }),
   toggleSuppressed: (c) =>
-    set((s) => ({ suppressed: s.suppressed.includes(c) ? s.suppressed.filter((x) => x !== c) : [...s.suppressed, c] })),
+    set((s) => {
+      const off = s.suppressed.includes(c);
+      return {
+        suppressed: off ? s.suppressed.filter((x) => x !== c) : [...s.suppressed, c],
+        selected: off ? s.selected : s.selected.filter((x) => x !== c),
+      };
+    }),
   setPreference: (c, pref) =>
     set((s) => ({
       selected: pref === "prioritise" ? Array.from(new Set([...s.selected, c])) : s.selected.filter((x) => x !== c),

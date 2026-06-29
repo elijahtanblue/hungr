@@ -35,7 +35,12 @@ export default function PlaceDetail() {
       .then((d) => {
         if (!active) return;
         setDetails(d);
-        if (d?.name) getGrounded(d.name).then((g) => { if (active) setGrounded(g); }).catch(() => {});
+        // Disambiguate with the address so two places sharing a name (chains, common names)
+        // do not get each other's grounded answer under a Google-attributed heading.
+        if (d?.name) {
+          const groundedQuery = d.address ? `${d.name}, ${d.address}` : d.name;
+          getGrounded(groundedQuery).then((g) => { if (active) setGrounded(g); }).catch(() => {});
+        }
       })
       .catch(() => {})
       .finally(() => { if (active) setLoading(false); });

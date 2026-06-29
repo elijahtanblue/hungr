@@ -43,12 +43,17 @@ export async function withFirstPartyCuisines(places: Place[]): Promise<Place[]> 
     .from("place_cuisines")
     .select("place_id, cuisines(name)")
     .in("place_id", ids);
-  if (error) throw error;
-  if (!data) return places;
+  // Refinement is best effort: if the join fails, return the base (Google coarse) cuisines
+  // rather than throwing, so a transient place_cuisines error never wipes the map pins.
+  if (error || !data) return places;
   const byPlace = new Map<string, Set<string>>();
   for (const row of data as any[]) {
     const set = byPlace.get(row.place_id) ?? new Set<string>();
-    if (row.cuisines?.name) set.add(row.cuisines.name);
+    // Supabase may return the related row as an object or an array depending on the
+    // relationship config; handle both so first party tags are never silently dropped.
+    const rel = row.cuisines;
+    const names = Array.isArray(rel) ? rel.map((c: any) => c?.name) : [rel?.name];
+    for (const n of names) if (typeof n === "string") set.add(n);
     byPlace.set(row.place_id, set);
   }
   return places.map((p) => {

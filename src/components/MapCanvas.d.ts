@@ -10,4 +10,5 @@ export declare function MapCanvas(props: {
   region: Region;
   places: Place[];
   onSelect: (p: Place) => void;
+  onRegionChange?: (region: Region) => void;
 }): ReactElement;

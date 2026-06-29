@@ -77,7 +77,21 @@ export default function Map() {
 
   return (
     <View style={s.wrap}>
-      <MapCanvas region={region} places={visible} onSelect={setSelected} />
+      <MapCanvas
+        region={region}
+        places={visible}
+        onSelect={setSelected}
+        onRegionChange={(r) =>
+          setRegion((prev) => {
+            // Only follow the viewport once it has moved a meaningful distance (~80m), so
+            // search refires when the user pans but not on every tiny camera jitter.
+            const moved =
+              Math.abs(prev.latitude - r.latitude) > 0.0008 ||
+              Math.abs(prev.longitude - r.longitude) > 0.0008;
+            return moved ? r : prev;
+          })
+        }
+      />
       <View style={s.top}>
         <SearchBar value={query} onChange={setQuery} onPreferences={() => setShowPrefs(true)} />
         <CuisineFilter cuisines={CUISINES} />

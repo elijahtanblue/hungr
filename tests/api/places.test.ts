@@ -53,11 +53,31 @@ test("searchNearby rejects when the proxy returns no places payload", async () =
   await expect(searchNearby(1, 2, "food")).rejects.toThrow("Invalid places response");
 });
 
-test("withFirstPartyCuisines rejects when cuisine refinement fails", async () => {
+test("withFirstPartyCuisines is best effort: a refinement failure falls back to base cuisines, never wiping pins", async () => {
   (supabase.from as jest.Mock).mockReturnValue({
     select: jest.fn().mockReturnValue({
       in: jest.fn().mockResolvedValue({ data: null, error: new Error("rls denied") }),
     }),
   });
-  await expect(withFirstPartyCuisines(places)).rejects.toThrow("rls denied");
+  // Optional enrichment: on error it returns the input places unchanged rather than throwing,
+  // so the map keeps its pins (a throw here would be caught upstream and clear the whole map).
+  const out = await withFirstPartyCuisines(places);
+  expect(out).toEqual(places);
+});
+
+test("withFirstPartyCuisines unions first party tags whether the relation is an object or an array", async () => {
+  (supabase.from as jest.Mock).mockReturnValue({
+    select: jest.fn().mockReturnValue({
+      in: jest.fn().mockResolvedValue({
+        data: [
+          { place_id: "a", cuisines: { name: "Sichuan" } },        // to-one object shape
+          { place_id: "b", cuisines: [{ name: "Punjabi" }] },       // array shape
+        ],
+        error: null,
+      }),
+    }),
+  });
+  const out = await withFirstPartyCuisines(places);
+  expect(out.find((p) => p.placeId === "a")!.cuisines).toEqual(expect.arrayContaining(["Chinese", "Sichuan"]));
+  expect(out.find((p) => p.placeId === "b")!.cuisines).toEqual(expect.arrayContaining(["Indian", "Punjabi"]));
 });
