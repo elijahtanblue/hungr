@@ -3,8 +3,12 @@ import { colors, radius, space } from "../theme";
 import type { Place, PlaceState } from "../domain/types";
 
 export function PlaceSheet({
-  place, onSetState,
-}: { place: Place; onSetState: (placeId: string, state: PlaceState) => void }) {
+  place, onSetState, onOpenDetail,
+}: {
+  place: Place;
+  onSetState: (placeId: string, state: PlaceState) => void;
+  onOpenDetail?: (placeId: string) => void;
+}) {
   return (
     <View style={s.sheet}>
       <View style={s.grab} />
@@ -24,6 +28,11 @@ export function PlaceSheet({
           <Text style={s.btnTxt}>Avoid</Text>
         </Pressable>
       </View>
+      {onOpenDetail && (
+        <Pressable style={s.detail} onPress={() => onOpenDetail(place.placeId)} accessibilityRole="button">
+          <Text style={s.detailTxt}>See full details</Text>
+        </Pressable>
+      )}
     </View>
   );
 }
@@ -40,4 +49,6 @@ const s = StyleSheet.create({
   primary: { backgroundColor: colors.accent, borderColor: colors.accent },
   primaryTxt: { color: colors.onAccent, fontWeight: "600" },
   btnTxt: { color: colors.ink, fontWeight: "600" },
+  detail: { marginTop: space.sm, alignItems: "center", paddingVertical: space.xs },
+  detailTxt: { color: colors.muted, fontWeight: "600", fontSize: 13 },
 });

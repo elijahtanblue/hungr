@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { View, StyleSheet } from "react-native";
+import { router } from "expo-router";
 import * as Location from "expo-location";
 import { MapCanvas } from "../../src/components/MapCanvas";
 import { SearchBar } from "../../src/components/SearchBar";
@@ -77,7 +78,13 @@ export default function Map() {
         <SearchBar value={query} onChange={setQuery} onPreferences={() => setShowPrefs(true)} />
         <CuisineFilter cuisines={CUISINES} />
       </View>
-      {selected && <PlaceSheet place={selected} onSetState={setState} />}
+      {selected && (
+        <PlaceSheet
+          place={selected}
+          onSetState={setState}
+          onOpenDetail={(placeId) => router.push({ pathname: "/place/[placeId]", params: { placeId } })}
+        />
+      )}
       {showPrefs && <PreferencesSheet cuisines={CUISINES} onClose={() => setShowPrefs(false)} />}
     </View>
   );
