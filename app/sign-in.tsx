@@ -3,7 +3,7 @@ import { View, Text, TextInput, Pressable, StyleSheet } from "react-native";
 import * as WebBrowser from "expo-web-browser";
 import { makeRedirectUri } from "expo-auth-session";
 import { supabase } from "../src/lib/supabase";
-import { colors, radius, space } from "../src/theme";
+import { colors, radius, space, fonts } from "../src/theme";
 
 export default function SignIn() {
   const [email, setEmail] = useState("");
@@ -59,7 +59,7 @@ export default function SignIn() {
 
 const s = StyleSheet.create({
   wrap: { flex: 1, justifyContent: "center", padding: space.xl, backgroundColor: colors.canvas, gap: space.md },
-  brand: { fontSize: 44, color: colors.ink },
+  brand: { fontSize: 44, color: colors.ink, fontFamily: fonts.brand },
   tag: { fontSize: 16, color: colors.muted, marginBottom: space.lg },
   input: { backgroundColor: colors.surface, borderColor: colors.hair, borderWidth: 1, borderRadius: radius.md, padding: space.md, color: colors.ink, minHeight: 48 },
   primary: { backgroundColor: colors.accent, borderRadius: radius.md, padding: space.md, alignItems: "center", minHeight: 48 },
