@@ -18,6 +18,7 @@
 - Supabase auth on React Native uses an AsyncStorage adapter (there is no `localStorage` on native).
 - The iOS Google Maps SDK key is injected into native config via `app.config.js` from `EXPO_PUBLIC_MAPS_SDK_KEY`.
 - v1 cuisine granularity is coarse (Chinese, Korean, Japanese, Thai, Vietnamese, Indian), matching what Google place types can supply. Finer granularity (for example Sichuan) and inference come later (see deferred work).
+- **Testing convention (React Native Testing Library 14 on React 19):** `render`, `renderHook`, and `fireEvent` are all async now. Every component test is an `async` test that does `await render(<C/>)`, queries via the imported `screen` object (the render return no longer carries bound queries), and `await fireEvent.press(...)` / `await fireEvent.changeText(...)`. Hook tests do `const r = await renderHook(...)`, then `r.result.current` and `await r.rerender(...)`, and flush timers with `await act(async () => { jest.advanceTimersByTime(ms); })`.
 
 ---
 
@@ -77,7 +78,12 @@ Run:
 npx create-expo-app@latest . --template blank-typescript
 npx expo install expo-router react-native-safe-area-context react-native-screens expo-linking expo-constants expo-status-bar
 npm install zustand @supabase/supabase-js
-npm install -D jest jest-expo @testing-library/react-native @testing-library/jest-native @types/jest
+# Test toolchain pinned for Expo SDK 56: jest-expo 56 carries jest 29 internals, so jest
+# must be 29 (jest 30 breaks the module mocker). @react-native/jest-preset is jest-expo's
+# peer dep. test-renderer is RNTL 14's peer for React 19 (replaces react-test-renderer).
+# If npm reports ERESOLVE, append --legacy-peer-deps (the scaffold pins react tightly).
+npm install -D jest@^29 @types/jest@^29 jest-expo @react-native/jest-preset test-renderer \
+  @testing-library/react-native @testing-library/jest-native
 ```
 
 - [ ] **Step 2: Configure Expo Router and Jest**
@@ -91,7 +97,25 @@ Set `package.json` `"main"` to `"expo-router/entry"` and add scripts:
     "web": "expo start --web",
     "test": "jest"
   },
-  "jest": { "preset": "jest-expo" }
+  "jest": {
+    "preset": "jest-expo",
+    "testPathIgnorePatterns": ["/node_modules/", "/supabase/"]
+  }
+}
+```
+
+The Supabase folder holds Deno tests (run with `deno test`), so Jest must ignore it.
+
+Also adjust `tsconfig.json` (create-expo-app generated a minimal one) so `tsc --noEmit`
+is a reliable gate: add Jest and Node globals and exclude the Deno tree.
+```json
+{
+  "extends": "expo/tsconfig.base",
+  "compilerOptions": {
+    "strict": true,
+    "types": ["jest", "node"]
+  },
+  "exclude": ["node_modules", "supabase"]
 }
 ```
 
@@ -540,7 +564,7 @@ git commit -m "feat: schema (place_id only) plus RLS default deny with isolation
 
 Create `tests/components/SignIn.test.tsx`:
 ```typescript
-import { render, fireEvent } from "@testing-library/react-native";
+import { render, screen, fireEvent } from "@testing-library/react-native";
 import SignIn from "../../app/sign-in";
 import { supabase } from "../../src/lib/supabase";
 
@@ -548,10 +572,10 @@ jest.mock("../../src/lib/supabase", () => ({
   supabase: { auth: { signInWithOtp: jest.fn().mockResolvedValue({ error: null }) } },
 }));
 
-test("submitting an email requests a magic link", () => {
-  const { getByPlaceholderText, getByText } = render(<SignIn />);
-  fireEvent.changeText(getByPlaceholderText("you@email.com"), "test@hungr.app");
-  fireEvent.press(getByText("Email me a link"));
+test("submitting an email requests a magic link", async () => {
+  await render(<SignIn />);
+  await fireEvent.changeText(screen.getByPlaceholderText("you@email.com"), "test@hungr.app");
+  await fireEvent.press(screen.getByText("Email me a link"));
   expect(supabase.auth.signInWithOtp).toHaveBeenCalledWith({ email: "test@hungr.app" });
 });
 ```
@@ -1155,15 +1179,15 @@ import { useDebouncedValue } from "../../src/hooks/useDebouncedValue";
 
 jest.useFakeTimers();
 
-test("debounced value updates only after the delay", () => {
-  const { result, rerender } = renderHook(({ v }) => useDebouncedValue(v, 300), {
+test("debounced value updates only after the delay", async () => {
+  const r = await renderHook(({ v }) => useDebouncedValue(v, 300), {
     initialProps: { v: "a" },
   });
-  expect(result.current).toBe("a");
-  rerender({ v: "ab" });
-  expect(result.current).toBe("a"); // not yet
-  act(() => { jest.advanceTimersByTime(300); });
-  expect(result.current).toBe("ab"); // now
+  expect(r.result.current).toBe("a");
+  await r.rerender({ v: "ab" });
+  expect(r.result.current).toBe("a"); // not yet
+  await act(async () => { jest.advanceTimersByTime(300); });
+  expect(r.result.current).toBe("ab"); // now
 });
 ```
 
@@ -1199,13 +1223,13 @@ Expected: PASS.
 
 Create `tests/components/CuisineFilter.test.tsx`:
 ```typescript
-import { render, fireEvent } from "@testing-library/react-native";
+import { render, screen, fireEvent } from "@testing-library/react-native";
 import { CuisineFilter } from "../../src/components/CuisineFilter";
 import { useFilters } from "../../src/store/useFilters";
 
-test("long pressing a cuisine chip moves it to the avoid list", () => {
-  const { getByText } = render(<CuisineFilter cuisines={["Indian", "Chinese"]} />);
-  fireEvent(getByText("Indian"), "onLongPress");
+test("long pressing a cuisine chip moves it to the avoid list", async () => {
+  await render(<CuisineFilter cuisines={["Indian", "Chinese"]} />);
+  await fireEvent(screen.getByText("Indian"), "onLongPress");
   expect(useFilters.getState().suppressed).toContain("Indian");
 });
 ```
@@ -1314,14 +1338,14 @@ git commit -m "feat: search bar, debounce hook, cuisine filter (tap to select, l
 
 Create `tests/components/PlaceSheet.test.tsx`:
 ```typescript
-import { render, fireEvent } from "@testing-library/react-native";
+import { render, screen, fireEvent } from "@testing-library/react-native";
 import { PlaceSheet } from "../../src/components/PlaceSheet";
 
-test("tapping Want to go calls onSetState with go", () => {
+test("tapping Want to go calls onSetState with go", async () => {
   const onSetState = jest.fn();
   const place = { placeId: "p1", name: "Spicy World", lat: 0, lng: 0, rating: 4.6, cuisines: ["Chinese"] };
-  const { getByText } = render(<PlaceSheet place={place} onSetState={onSetState} />);
-  fireEvent.press(getByText("Want to go"));
+  await render(<PlaceSheet place={place} onSetState={onSetState} />);
+  await fireEvent.press(screen.getByText("Want to go"));
   expect(onSetState).toHaveBeenCalledWith("p1", "go");
 });
 ```
