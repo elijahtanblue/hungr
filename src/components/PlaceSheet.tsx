@@ -18,13 +18,13 @@ export function PlaceSheet({
       </View>
       <Text style={s.meta}>{place.cuisines.join(" · ")}</Text>
       <View style={s.actions}>
-        <Pressable style={[s.btn, s.primary]} onPress={() => onSetState(place.placeId, "go")}>
+        <Pressable style={[s.btn, s.primary]} onPress={() => onSetState(place.placeId, "go")} accessibilityRole="button" accessibilityLabel={`Mark ${place.name} as want to go`}>
           <Text style={s.primaryTxt}>Want to go</Text>
         </Pressable>
-        <Pressable style={s.btn} onPress={() => onSetState(place.placeId, "been")}>
+        <Pressable style={s.btn} onPress={() => onSetState(place.placeId, "been")} accessibilityRole="button" accessibilityLabel={`Mark ${place.name} as been`}>
           <Text style={s.btnTxt}>Been</Text>
         </Pressable>
-        <Pressable style={s.btn} onPress={() => onSetState(place.placeId, "avoid")}>
+        <Pressable style={s.btn} onPress={() => onSetState(place.placeId, "avoid")} accessibilityRole="button" accessibilityLabel={`Mark ${place.name} as avoid`}>
           <Text style={s.btnTxt}>Avoid</Text>
         </Pressable>
       </View>

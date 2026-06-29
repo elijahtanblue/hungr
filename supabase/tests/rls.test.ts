@@ -55,3 +55,11 @@ Deno.test("places and cuisines are publicly readable", async () => {
   const cuisines = await a.client.from("cuisines").select("*");
   if (!cuisines.data || cuisines.data.length < 6) throw new Error("cuisines should be public read");
 });
+
+Deno.test("rate_limits is not readable by any client", async () => {
+  const a = await makeUser(`rl_${crypto.randomUUID()}@t.dev`);
+  // Touch the limiter indirectly is not possible from the client; just prove the table is
+  // locked down (RLS enabled, no policy, no grant) so per-user request counts never leak.
+  const { data } = await a.client.from("rate_limits").select("*");
+  if (data && data.length > 0) throw new Error("rate_limits must not be client readable");
+});

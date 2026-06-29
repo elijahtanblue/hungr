@@ -1,6 +1,6 @@
-import { View } from "react-native";
+import { View, Text } from "react-native";
 import { APIProvider, Map, AdvancedMarker, Pin } from "@vis.gl/react-google-maps";
-import { colors } from "../theme";
+import { colors, space } from "../theme";
 import type { Place, PlaceState } from "../domain/types";
 
 // Web map. react-native-maps does not run on web, so the web build uses Google Maps
@@ -24,6 +24,17 @@ export function MapCanvas({
   onRegionChange?: (region: Region) => void;
 }) {
   const apiKey = process.env.EXPO_PUBLIC_MAPS_SDK_KEY ?? "";
+  // Without a real Maps JavaScript key the Google map renders a blank gray tile with only a
+  // console error. Show an explicit message instead (the placeholder starts with "<").
+  if (!apiKey || apiKey.startsWith("<")) {
+    return (
+      <View style={{ flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: colors.canvas, padding: space.xl }}>
+        <Text style={{ color: colors.muted, textAlign: "center" }}>
+          Map unavailable. Set EXPO_PUBLIC_MAPS_SDK_KEY to a Google Maps JavaScript key.
+        </Text>
+      </View>
+    );
+  }
   return (
     <View style={{ flex: 1 }}>
       <APIProvider apiKey={apiKey}>

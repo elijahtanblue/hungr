@@ -47,10 +47,10 @@ export default function SignIn() {
         onChangeText={setEmail}
         placeholderTextColor={colors.muted}
       />
-      <Pressable style={s.primary} onPress={emailLink}>
+      <Pressable style={s.primary} onPress={emailLink} accessibilityRole="button">
         <Text style={s.primaryTxt}>{sent ? "Check your inbox" : "Email me a link"}</Text>
       </Pressable>
-      <Pressable style={s.ghost} onPress={google}>
+      <Pressable style={s.ghost} onPress={google} accessibilityRole="button">
         <Text style={s.ghostTxt}>Continue with Google</Text>
       </Pressable>
     </View>
