@@ -1,12 +1,9 @@
 // Server side only. Holds GOOGLE_PLACES_KEY. Fetches Google Places live and returns
 // only display-safe fields plus a coarse cuisine derived from the Google place type.
 // NEVER returns or stores review text. Per-user rate limited and auth gated.
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { guard } from "../_shared/guard.ts";
 
 const KEY = Deno.env.get("GOOGLE_PLACES_KEY")!;
-const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
-const ANON = Deno.env.get("SUPABASE_ANON_KEY")!;
-const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE")!;
 const MAX_PER_MIN = 60;
 
 // Google place types are coarse. Map the ones we support to a v1 cuisine label.
@@ -48,22 +45,11 @@ export function shapePlace(raw: any): SafePlace {
 }
 
 export default async function handler(req: Request): Promise<Response> {
-  // 1. Authenticate the caller from the forwarded bearer token.
-  const authHeader = req.headers.get("Authorization") ?? "";
-  const jwt = authHeader.replace("Bearer ", "");
-  const anon = createClient(SUPABASE_URL, ANON);
-  const { data: userData } = await anon.auth.getUser(jwt);
-  if (!userData?.user) return new Response("Unauthorized", { status: 401 });
+  // Authenticate the caller and enforce the per-user rate limit.
+  const blocked = await guard(req, MAX_PER_MIN);
+  if (blocked) return blocked;
 
-  // 2. Per-user rate limit (durable, server side).
-  const admin = createClient(SUPABASE_URL, SERVICE_ROLE);
-  const { data: allowed } = await admin.rpc("bump_rate_limit", {
-    uid: userData.user.id,
-    max_per_min: MAX_PER_MIN,
-  });
-  if (allowed === false) return new Response("Rate limited", { status: 429 });
-
-  // 3. Fetch Google Places live, asking only for fields we are allowed to display.
+  // Fetch Google Places live, asking only for fields we are allowed to display.
   const { lat, lng, query } = await req.json();
   const res = await fetch("https://places.googleapis.com/v1/places:searchText", {
     method: "POST",

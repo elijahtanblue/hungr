@@ -1,7 +1,11 @@
 // Server side only. Holds GEMINI_KEY. The ONLY sanctioned way to use AI over Google Maps
 // data. Returns the grounded answer plus the required Google source links. Output is
 // shown in its own block in the UI, never interspersed with community content.
+// Auth gated and rate limited (Gemini is paid, so the limit is tighter than Places).
+import { guard } from "../_shared/guard.ts";
+
 const KEY = Deno.env.get("GEMINI_KEY")!;
+const MAX_PER_MIN = 20;
 
 export function shapeGrounded(raw: any): { text: string; sources: string[] } {
   const text = raw.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
@@ -10,6 +14,9 @@ export function shapeGrounded(raw: any): { text: string; sources: string[] } {
 }
 
 export default async function handler(req: Request): Promise<Response> {
+  const blocked = await guard(req, MAX_PER_MIN);
+  if (blocked) return blocked;
+
   const { placeQuery } = await req.json();
   const res = await fetch(
     "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent",

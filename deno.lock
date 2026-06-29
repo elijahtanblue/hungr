@@ -22,6 +22,7 @@
   "workspace": {
     "packageJson": {
       "dependencies": [
+        "npm:@expo/vector-icons@^15.1.1",
         "npm:@react-native-async-storage/async-storage@2.2.0",
         "npm:@react-native/jest-preset@~0.85.3",
         "npm:@supabase/supabase-js@^2.108.2",
@@ -29,8 +30,10 @@
         "npm:@testing-library/react-native@^14.0.1",
         "npm:@types/jest@^29.5.14",
         "npm:@types/react@~19.2.2",
+        "npm:expo-asset@~56.0.17",
         "npm:expo-auth-session@~56.0.14",
         "npm:expo-constants@~56.0.18",
+        "npm:expo-font@~56.0.7",
         "npm:expo-linking@~56.0.14",
         "npm:expo-location@~56.0.18",
         "npm:expo-router@~56.2.11",
