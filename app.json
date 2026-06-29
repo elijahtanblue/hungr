@@ -8,14 +8,14 @@
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "ios": {
-      "bundleIdentifier": "com.hungr.app",
+      "bundleIdentifier": "app.usehungr",
       "supportsTablet": false,
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "hungr uses your location to find food near you."
       }
     },
     "android": {
-      "package": "com.hungr.app",
+      "package": "app.usehungr",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/android-icon-foreground.png",
