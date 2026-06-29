@@ -26,3 +26,11 @@ test("Prioritise and Avoid are mutually exclusive in the sheet", async () => {
   expect(useFilters.getState().selected).toContain("Thai");
   expect(useFilters.getState().suppressed).not.toContain("Thai");
 });
+
+test("preference persistence handles rejected saves", async () => {
+  const catchSpy = jest.fn();
+  (saveSuppressedCuisines as jest.Mock).mockReturnValueOnce({ catch: catchSpy });
+  await render(<PreferencesSheet cuisines={["Thai"]} onClose={() => {}} />);
+  await fireEvent.press(screen.getByText("Avoid"));
+  expect(catchSpy).toHaveBeenCalled();
+});

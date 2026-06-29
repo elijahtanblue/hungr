@@ -10,6 +10,8 @@ export async function getCommunity(placeId: string): Promise<{ reviews: Communit
     supabase.from("reviews").select("id, body, rating, created_at").eq("place_id", placeId).order("created_at", { ascending: false }),
     supabase.from("place_tags").select("tag").eq("place_id", placeId),
   ]);
+  if (reviewsRes.error) throw reviewsRes.error;
+  if (tagsRes.error) throw tagsRes.error;
   const reviews = (reviewsRes.data ?? []).map((r: any) => ({
     id: r.id,
     body: r.body,

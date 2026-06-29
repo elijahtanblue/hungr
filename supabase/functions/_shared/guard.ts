@@ -7,6 +7,10 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const ANON = Deno.env.get("SUPABASE_ANON_KEY")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE")!;
 
+export function rateLimitAllowed(allowed: unknown, error: unknown): boolean {
+  return !error && allowed === true;
+}
+
 export async function guard(req: Request, maxPerMin: number): Promise<Response | null> {
   const jwt = (req.headers.get("Authorization") ?? "").replace("Bearer ", "");
   const anon = createClient(SUPABASE_URL, ANON);
@@ -14,11 +18,11 @@ export async function guard(req: Request, maxPerMin: number): Promise<Response |
   if (!userData?.user) return new Response("Unauthorized", { status: 401 });
 
   const admin = createClient(SUPABASE_URL, SERVICE_ROLE);
-  const { data: allowed } = await admin.rpc("bump_rate_limit", {
+  const { data: allowed, error } = await admin.rpc("bump_rate_limit", {
     uid: userData.user.id,
     max_per_min: maxPerMin,
   });
-  if (allowed === false) return new Response("Rate limited", { status: 429 });
+  if (!rateLimitAllowed(allowed, error)) return new Response("Rate limited", { status: 429 });
 
   return null;
 }

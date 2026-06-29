@@ -1,9 +1,12 @@
-import { applyFilters, searchNearby } from "../../src/api/places";
+import { applyFilters, searchNearby, withFirstPartyCuisines } from "../../src/api/places";
 import type { Place } from "../../src/domain/types";
 import { supabase } from "../../src/lib/supabase";
 
 jest.mock("../../src/lib/supabase", () => ({
-  supabase: { functions: { invoke: jest.fn() } },
+  supabase: {
+    functions: { invoke: jest.fn() },
+    from: jest.fn(),
+  },
 }));
 
 const places: Place[] = [
@@ -29,4 +32,32 @@ test("searchNearby carries the coarse cuisine returned by the proxy", async () =
   });
   const out = await searchNearby(1, 2, "food");
   expect(out[0].cuisines).toEqual(["Thai"]);
+});
+
+test("searchNearby drops malformed places that cannot render on the map", async () => {
+  (supabase.functions.invoke as jest.Mock).mockResolvedValue({
+    data: {
+      places: [
+        { placeId: "ok", name: "OK", lat: 1, lng: 2, cuisines: [] },
+        { placeId: "bad", name: "Bad", lat: undefined, lng: 2, cuisines: [] },
+      ],
+    },
+    error: null,
+  });
+  const out = await searchNearby(1, 2, "food");
+  expect(out.map((p) => p.placeId)).toEqual(["ok"]);
+});
+
+test("searchNearby rejects when the proxy returns no places payload", async () => {
+  (supabase.functions.invoke as jest.Mock).mockResolvedValue({ data: null, error: null });
+  await expect(searchNearby(1, 2, "food")).rejects.toThrow("Invalid places response");
+});
+
+test("withFirstPartyCuisines rejects when cuisine refinement fails", async () => {
+  (supabase.from as jest.Mock).mockReturnValue({
+    select: jest.fn().mockReturnValue({
+      in: jest.fn().mockResolvedValue({ data: null, error: new Error("rls denied") }),
+    }),
+  });
+  await expect(withFirstPartyCuisines(places)).rejects.toThrow("rls denied");
 });

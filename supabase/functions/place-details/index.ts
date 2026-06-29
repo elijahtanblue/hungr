@@ -3,6 +3,7 @@
 // Google content live is allowed; storing it is not, so this is fetched fresh every time and
 // never persisted. Auth gated and rate limited via the shared guard.
 import { guard } from "../_shared/guard.ts";
+import { readJsonObject } from "../_shared/request.ts";
 
 const KEY = Deno.env.get("GOOGLE_PLACES_KEY")!;
 
@@ -51,7 +52,9 @@ export default async function handler(req: Request): Promise<Response> {
   const blocked = await guard(req, 60);
   if (blocked) return blocked;
 
-  const { placeId } = await req.json();
+  const body = await readJsonObject(req);
+  if (!body.ok) return body.response;
+  const { placeId } = body.value;
   // Validate before interpolating into the URL: a place_id is a safe token. This prevents
   // path traversal or reaching other Google endpoints with the secret key attached.
   if (typeof placeId !== "string" || !/^[A-Za-z0-9_-]+$/.test(placeId)) {

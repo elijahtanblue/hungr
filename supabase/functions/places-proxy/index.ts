@@ -2,6 +2,7 @@
 // only display-safe fields plus a coarse cuisine derived from the Google place type.
 // NEVER returns or stores review text. Per-user rate limited and auth gated.
 import { guard } from "../_shared/guard.ts";
+import { readJsonObject } from "../_shared/request.ts";
 
 const KEY = Deno.env.get("GOOGLE_PLACES_KEY")!;
 const MAX_PER_MIN = 60;
@@ -50,7 +51,9 @@ export default async function handler(req: Request): Promise<Response> {
   if (blocked) return blocked;
 
   // Fetch Google Places live, asking only for fields we are allowed to display.
-  const { lat, lng, query } = await req.json();
+  const body = await readJsonObject(req);
+  if (!body.ok) return body.response;
+  const { lat, lng, query } = body.value;
   if (typeof lat !== "number" || typeof lng !== "number" || !isFinite(lat) || !isFinite(lng)) {
     return new Response("Invalid coordinates", { status: 400 });
   }

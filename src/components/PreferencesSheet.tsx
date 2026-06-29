@@ -13,7 +13,7 @@ export function PreferencesSheet({ cuisines, onClose }: { cuisines: string[]; on
   function choose(c: string, isOn: boolean, target: "prioritise" | "avoid") {
     setPreference(c, isOn ? "neutral" : target);
     // Persist the avoid list from the freshly updated store state.
-    saveSuppressedCuisines(useFilters.getState().suppressed);
+    saveSuppressedCuisines(useFilters.getState().suppressed).catch(() => {});
   }
 
   return (

@@ -11,9 +11,9 @@ import { PreferencesSheet } from "../../src/components/PreferencesSheet";
 import { FindFoodPopup } from "../../src/components/FindFoodPopup";
 import { searchNearby, withFirstPartyCuisines, applyFilters } from "../../src/api/places";
 import { loadSuppressedCuisines } from "../../src/api/preferences";
+import { setUserPlaceState } from "../../src/api/userPlaces";
 import { useFilters } from "../../src/store/useFilters";
 import { useDebouncedValue } from "../../src/hooks/useDebouncedValue";
-import { supabase } from "../../src/lib/supabase";
 import { colors, space } from "../../src/theme";
 import type { Place, PlaceState } from "../../src/domain/types";
 
@@ -63,14 +63,14 @@ export default function Map() {
   }, [region.latitude, region.longitude, debouncedQuery, refresh]);
 
   async function setState(placeId: string, state: PlaceState) {
-    const { data } = await supabase.auth.getUser();
-    if (!data.user) return;
-    // anchor place_id only (no Google content). Insert-or-ignore: places is immutable,
-    // so on conflict do nothing, which needs only INSERT privilege.
-    await supabase.from("places").upsert({ place_id: placeId }, { onConflict: "place_id", ignoreDuplicates: true });
-    await supabase.from("user_places").upsert({ user_id: data.user.id, place_id: placeId, state });
-    setPlaces((ps) => ps.map((p) => (p.placeId === placeId ? { ...p, state } : p)));
-    setSelected(null);
+    try {
+      const saved = await setUserPlaceState(placeId, state);
+      if (!saved) return;
+      setPlaces((ps) => ps.map((p) => (p.placeId === placeId ? { ...p, state } : p)));
+      setSelected(null);
+    } catch {
+      return;
+    }
   }
 
   const visible = applyFilters(places, { selected: sel, suppressed });

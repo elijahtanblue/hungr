@@ -3,6 +3,7 @@
 // shown in its own block in the UI, never interspersed with community content.
 // Auth gated and rate limited (Gemini is paid, so the limit is tighter than Places).
 import { guard } from "../_shared/guard.ts";
+import { readJsonObject } from "../_shared/request.ts";
 
 const KEY = Deno.env.get("GEMINI_KEY")!;
 const MAX_PER_MIN = 20;
@@ -23,14 +24,19 @@ export default async function handler(req: Request): Promise<Response> {
   const blocked = await guard(req, MAX_PER_MIN);
   if (blocked) return blocked;
 
-  const { placeQuery } = await req.json();
+  const body = await readJsonObject(req);
+  if (!body.ok) return body.response;
+  const { placeQuery } = body.value;
+  if (typeof placeQuery !== "string" || !placeQuery.trim()) {
+    return new Response("Invalid placeQuery", { status: 400 });
+  }
   const res = await fetch(
     "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent",
     {
       method: "POST",
       headers: { "Content-Type": "application/json", "x-goog-api-key": KEY },
       body: JSON.stringify({
-        contents: [{ parts: [{ text: `What is ${placeQuery} known for?` }] }],
+        contents: [{ parts: [{ text: `What is ${placeQuery.slice(0, 160)} known for?` }] }],
         tools: [{ googleMaps: {} }],
       }),
     },

@@ -20,14 +20,17 @@ export async function searchNearby(lat: number, lng: number, query: string): Pro
     body: { lat, lng, query },
   });
   if (error) throw error;
-  return (data.places ?? []).map((p: any) => ({
-    placeId: p.placeId,
-    name: p.name,
-    lat: p.lat,
-    lng: p.lng,
-    rating: p.rating,
-    cuisines: p.cuisines ?? [],
-  }));
+  if (!data || !Array.isArray(data.places)) throw new Error("Invalid places response");
+  return data.places
+    .filter((p: any) => typeof p.placeId === "string" && typeof p.name === "string" && Number.isFinite(p.lat) && Number.isFinite(p.lng))
+    .map((p: any) => ({
+      placeId: p.placeId,
+      name: p.name,
+      lat: p.lat,
+      lng: p.lng,
+      rating: p.rating,
+      cuisines: p.cuisines ?? [],
+    }));
 }
 
 // Union our first party place_cuisines tags onto the coarse Google cuisines.
@@ -36,10 +39,11 @@ export async function searchNearby(lat: number, lng: number, query: string): Pro
 export async function withFirstPartyCuisines(places: Place[]): Promise<Place[]> {
   if (places.length === 0) return places;
   const ids = places.map((p) => p.placeId);
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from("place_cuisines")
     .select("place_id, cuisines(name)")
     .in("place_id", ids);
+  if (error) throw error;
   if (!data) return places;
   const byPlace = new Map<string, Set<string>>();
   for (const row of data as any[]) {
