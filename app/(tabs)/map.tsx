@@ -1,16 +1,16 @@
 import { useEffect, useRef, useState } from "react";
 import { View, StyleSheet } from "react-native";
 import * as Location from "expo-location";
-import { MapCanvas } from "../src/components/MapCanvas";
-import { SearchBar } from "../src/components/SearchBar";
-import { CuisineFilter } from "../src/components/CuisineFilter";
-import { PlaceSheet } from "../src/components/PlaceSheet";
-import { searchNearby, withFirstPartyCuisines, applyFilters } from "../src/api/places";
-import { useFilters } from "../src/store/useFilters";
-import { useDebouncedValue } from "../src/hooks/useDebouncedValue";
-import { supabase } from "../src/lib/supabase";
-import { colors, space } from "../src/theme";
-import type { Place, PlaceState } from "../src/domain/types";
+import { MapCanvas } from "../../src/components/MapCanvas";
+import { SearchBar } from "../../src/components/SearchBar";
+import { CuisineFilter } from "../../src/components/CuisineFilter";
+import { PlaceSheet } from "../../src/components/PlaceSheet";
+import { searchNearby, withFirstPartyCuisines, applyFilters } from "../../src/api/places";
+import { useFilters } from "../../src/store/useFilters";
+import { useDebouncedValue } from "../../src/hooks/useDebouncedValue";
+import { supabase } from "../../src/lib/supabase";
+import { colors, space } from "../../src/theme";
+import type { Place, PlaceState } from "../../src/domain/types";
 
 const CUISINES = ["Chinese", "Korean", "Japanese", "Thai", "Vietnamese", "Indian"];
 
