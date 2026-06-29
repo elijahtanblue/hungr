@@ -1,0 +1,22 @@
+import MapView, { PROVIDER_GOOGLE, Marker } from "react-native-maps";
+import { StyleSheet } from "react-native";
+import { PlacePin } from "./PlacePin";
+import type { Place } from "../domain/types";
+
+export function MapCanvas({
+  region, places, onSelect,
+}: {
+  region: { latitude: number; longitude: number; latitudeDelta: number; longitudeDelta: number };
+  places: Place[];
+  onSelect: (p: Place) => void;
+}) {
+  return (
+    <MapView provider={PROVIDER_GOOGLE} style={StyleSheet.absoluteFill} initialRegion={region} showsUserLocation>
+      {places.map((p) => (
+        <Marker key={p.placeId} coordinate={{ latitude: p.lat, longitude: p.lng }} onPress={() => onSelect(p)}>
+          <PlacePin state={p.state} label={p.state === "avoid" ? "✕" : p.rating ? String(p.rating) : "★"} />
+        </Marker>
+      ))}
+    </MapView>
+  );
+}

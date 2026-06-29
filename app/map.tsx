@@ -1,0 +1,79 @@
+import { useEffect, useRef, useState } from "react";
+import { View, StyleSheet } from "react-native";
+import * as Location from "expo-location";
+import { MapCanvas } from "../src/components/MapCanvas";
+import { SearchBar } from "../src/components/SearchBar";
+import { CuisineFilter } from "../src/components/CuisineFilter";
+import { PlaceSheet } from "../src/components/PlaceSheet";
+import { searchNearby, withFirstPartyCuisines, applyFilters } from "../src/api/places";
+import { useFilters } from "../src/store/useFilters";
+import { useDebouncedValue } from "../src/hooks/useDebouncedValue";
+import { supabase } from "../src/lib/supabase";
+import { colors, space } from "../src/theme";
+import type { Place, PlaceState } from "../src/domain/types";
+
+const CUISINES = ["Chinese", "Korean", "Japanese", "Thai", "Vietnamese", "Indian"];
+
+export default function Map() {
+  const [query, setQuery] = useState("");
+  const [region, setRegion] = useState({ latitude: -33.87, longitude: 151.21, latitudeDelta: 0.05, longitudeDelta: 0.05 });
+  const [places, setPlaces] = useState<Place[]>([]);
+  const [selected, setSelected] = useState<Place | null>(null);
+  const { selected: sel, suppressed } = useFilters();
+
+  // Debounce the query so we do not hit the Places proxy on every keystroke.
+  const debouncedQuery = useDebouncedValue(query, 300);
+  // Monotonic request id so a slow earlier response cannot overwrite a newer one.
+  const reqId = useRef(0);
+
+  useEffect(() => {
+    (async () => {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status === "granted") {
+        const loc = await Location.getCurrentPositionAsync({});
+        setRegion((r) => ({ ...r, latitude: loc.coords.latitude, longitude: loc.coords.longitude }));
+      }
+      // graceful denial: keep the default Sydney region
+    })();
+  }, []);
+
+  useEffect(() => {
+    const id = ++reqId.current;
+    searchNearby(region.latitude, region.longitude, debouncedQuery || "food")
+      .then(withFirstPartyCuisines)
+      .then((result) => {
+        if (id === reqId.current) setPlaces(result); // ignore stale responses
+      })
+      .catch(() => {
+        if (id === reqId.current) setPlaces([]);
+      });
+  }, [region.latitude, region.longitude, debouncedQuery]);
+
+  async function setState(placeId: string, state: PlaceState) {
+    const { data } = await supabase.auth.getUser();
+    if (!data.user) return;
+    // anchor place_id only (no Google content). Insert-or-ignore: places is immutable,
+    // so on conflict do nothing, which needs only INSERT privilege.
+    await supabase.from("places").upsert({ place_id: placeId }, { onConflict: "place_id", ignoreDuplicates: true });
+    await supabase.from("user_places").upsert({ user_id: data.user.id, place_id: placeId, state });
+    setPlaces((ps) => ps.map((p) => (p.placeId === placeId ? { ...p, state } : p)));
+    setSelected(null);
+  }
+
+  const visible = applyFilters(places, { selected: sel, suppressed });
+
+  return (
+    <View style={s.wrap}>
+      <MapCanvas region={region} places={visible} onSelect={setSelected} />
+      <View style={s.top}>
+        <SearchBar value={query} onChange={setQuery} onPreferences={() => { /* preferences sheet is deferred, see Remaining work */ }} />
+        <CuisineFilter cuisines={CUISINES} />
+      </View>
+      {selected && <PlaceSheet place={selected} onSetState={setState} />}
+    </View>
+  );
+}
+const s = StyleSheet.create({
+  wrap: { flex: 1, backgroundColor: colors.canvas },
+  top: { position: "absolute", top: space.xxl, left: space.sm, right: space.sm, gap: space.xs },
+});
