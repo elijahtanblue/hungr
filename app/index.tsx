@@ -1,14 +1,8 @@
-import { View, Text, StyleSheet } from "react-native";
-import { colors, space } from "../src/theme";
+import { Redirect } from "expo-router";
+import { useSession } from "../src/lib/supabase";
 
 export default function Index() {
-  return (
-    <View style={s.wrap}>
-      <Text style={s.brand}>hungr</Text>
-    </View>
-  );
+  const { session, loading } = useSession();
+  if (loading) return null;
+  return <Redirect href={session ? "/map" : "/sign-in"} />;
 }
-const s = StyleSheet.create({
-  wrap: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: colors.canvas, padding: space.xl },
-  brand: { fontSize: 44, color: colors.ink },
-});
