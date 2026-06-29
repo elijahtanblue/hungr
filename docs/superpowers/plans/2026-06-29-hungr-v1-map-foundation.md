@@ -45,6 +45,7 @@ src/
   components/PlaceSheet.tsx
   components/MapCanvas.native.tsx   react-native-maps (Google provider)
   components/MapCanvas.web.tsx      Google Maps JS (stub for v1)
+  components/MapCanvas.d.ts        Shared type so tsc resolves the platform-split import
 supabase/
   migrations/0001_init.sql         Tables plus rate-limit function
   migrations/0002_rls.sql          RLS policies
@@ -1332,7 +1333,7 @@ git commit -m "feat: search bar, debounce hook, cuisine filter (tap to select, l
 ## Task 11: Map screen, pins, and place sheet (the core)
 
 **Files:**
-- Create: `src/components/MapCanvas.native.tsx`, `src/components/MapCanvas.web.tsx`, `src/components/PlacePin.tsx`, `src/components/PlaceSheet.tsx`, `app/map.tsx`, `tests/components/PlaceSheet.test.tsx`
+- Create: `src/components/MapCanvas.native.tsx`, `src/components/MapCanvas.web.tsx`, `src/components/MapCanvas.d.ts`, `src/components/PlacePin.tsx`, `src/components/PlaceSheet.tsx`, `app/map.tsx`, `tests/components/PlaceSheet.test.tsx`
 
 - [ ] **Step 1: Write the failing test for the place sheet state action**
 
@@ -1434,7 +1435,30 @@ const s = StyleSheet.create({
 Run: `npm test -- PlaceSheet`
 Expected: PASS.
 
-- [ ] **Step 5: Write the map canvas (native) and a web stub**
+- [ ] **Step 5: Write the map canvas (native), a web stub, and a shared type declaration**
+
+`MapCanvas` is a platform-split component (`.native.tsx` for iOS, `.web.tsx` for web).
+Metro picks the right file at bundle time by extension, but TypeScript (moduleResolution
+`bundler`) cannot resolve a bare `./MapCanvas` import to a `.native.tsx` file, so `tsc`
+would error. Add a type-only declaration that gives `tsc` the shared signature. Metro
+ignores `.d.ts`, so this changes nothing at runtime.
+
+Create `src/components/MapCanvas.d.ts`:
+```typescript
+import type { ReactElement } from "react";
+import type { Place } from "../domain/types";
+
+type Region = { latitude: number; longitude: number; latitudeDelta: number; longitudeDelta: number };
+
+// Type surface for the platform-split MapCanvas. The real implementations live in
+// MapCanvas.native.tsx and MapCanvas.web.tsx. This only exists so tsc can resolve the
+// bare import; the bundler selects the platform file.
+export declare function MapCanvas(props: {
+  region: Region;
+  places: Place[];
+  onSelect: (p: Place) => void;
+}): ReactElement;
+```
 
 Create `src/components/MapCanvas.native.tsx`:
 ```typescript
