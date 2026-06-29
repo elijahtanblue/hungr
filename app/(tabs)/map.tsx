@@ -5,7 +5,9 @@ import { MapCanvas } from "../../src/components/MapCanvas";
 import { SearchBar } from "../../src/components/SearchBar";
 import { CuisineFilter } from "../../src/components/CuisineFilter";
 import { PlaceSheet } from "../../src/components/PlaceSheet";
+import { PreferencesSheet } from "../../src/components/PreferencesSheet";
 import { searchNearby, withFirstPartyCuisines, applyFilters } from "../../src/api/places";
+import { loadSuppressedCuisines } from "../../src/api/preferences";
 import { useFilters } from "../../src/store/useFilters";
 import { useDebouncedValue } from "../../src/hooks/useDebouncedValue";
 import { supabase } from "../../src/lib/supabase";
@@ -19,7 +21,8 @@ export default function Map() {
   const [region, setRegion] = useState({ latitude: -33.87, longitude: 151.21, latitudeDelta: 0.05, longitudeDelta: 0.05 });
   const [places, setPlaces] = useState<Place[]>([]);
   const [selected, setSelected] = useState<Place | null>(null);
-  const { selected: sel, suppressed } = useFilters();
+  const [showPrefs, setShowPrefs] = useState(false);
+  const { selected: sel, suppressed, setSuppressed } = useFilters();
 
   // Debounce the query so we do not hit the Places proxy on every keystroke.
   const debouncedQuery = useDebouncedValue(query, 300);
@@ -36,6 +39,11 @@ export default function Map() {
       // graceful denial: keep the default Sydney region
     })();
   }, []);
+
+  // Load the saved avoid list so the map reflects the user's taste from the first render.
+  useEffect(() => {
+    loadSuppressedCuisines().then(setSuppressed).catch(() => {});
+  }, [setSuppressed]);
 
   useEffect(() => {
     const id = ++reqId.current;
@@ -66,10 +74,11 @@ export default function Map() {
     <View style={s.wrap}>
       <MapCanvas region={region} places={visible} onSelect={setSelected} />
       <View style={s.top}>
-        <SearchBar value={query} onChange={setQuery} onPreferences={() => { /* preferences sheet is deferred, see Remaining work */ }} />
+        <SearchBar value={query} onChange={setQuery} onPreferences={() => setShowPrefs(true)} />
         <CuisineFilter cuisines={CUISINES} />
       </View>
       {selected && <PlaceSheet place={selected} onSetState={setState} />}
+      {showPrefs && <PreferencesSheet cuisines={CUISINES} onClose={() => setShowPrefs(false)} />}
     </View>
   );
 }
