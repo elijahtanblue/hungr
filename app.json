@@ -29,6 +29,13 @@
       "expo-router",
       "expo-status-bar",
       "expo-web-browser"
-    ]
+    ],
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "d46f5ee4-f921-43f3-a2e6-6d521d3f3af6"
+      }
+    },
+    "owner": "hungr"
   }
 }
