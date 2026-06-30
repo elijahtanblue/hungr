@@ -13,11 +13,23 @@ export type CommunityReview = {
 };
 
 export type ReviewDraft = { id?: string; body: string; rating: number | null };
+export type Community = {
+  reviews: CommunityReview[];
+  tags: string[];
+  ratingAverage: number | null;
+  ratingCount: number;
+};
 
-async function currentUserId(): Promise<string | null> {
-  const { data } = await supabase.auth.getUser();
-  return data.user?.id ?? null;
-}
+const MAX_REVIEW_BODY = 2000;
+type CommunityReviewRow = {
+  id: string;
+  body: string;
+  rating?: number | null;
+  created_at: string;
+  is_mine?: boolean | null;
+};
+
+type PlaceTagRow = { tag: string };
 
 async function anchorPlace(placeId: string): Promise<void> {
   const place = await supabase
@@ -26,28 +38,34 @@ async function anchorPlace(placeId: string): Promise<void> {
   if (place.error) throw place.error;
 }
 
-export async function getCommunity(placeId: string): Promise<{ reviews: CommunityReview[]; tags: string[] }> {
-  const mine = await currentUserId();
+export async function getCommunity(placeId: string): Promise<Community> {
   const [reviewsRes, tagsRes] = await Promise.all([
-    supabase.from("reviews").select("id, user_id, body, rating, created_at").eq("place_id", placeId).order("created_at", { ascending: false }),
-    supabase.from("place_tags").select("tag").eq("place_id", placeId),
+    supabase.rpc("get_place_reviews", { target_place_id: placeId }),
+    supabase.rpc("get_place_tags", { target_place_id: placeId }),
   ]);
   if (reviewsRes.error) throw reviewsRes.error;
   if (tagsRes.error) throw tagsRes.error;
-  const reviews = (reviewsRes.data ?? []).map((r: any) => ({
+  const reviews = ((reviewsRes.data ?? []) as CommunityReviewRow[]).map((r) => ({
     id: r.id,
-    userId: typeof r.user_id === "string" ? r.user_id : null,
-    isMine: !!mine && r.user_id === mine,
+    userId: null,
+    isMine: !!r.is_mine,
     body: r.body,
     rating: r.rating ?? undefined,
     createdAt: r.created_at,
   }));
-  const tags = Array.from(new Set((tagsRes.data ?? []).map((t: any) => t.tag)));
-  return { reviews, tags };
+  const tags = Array.from(new Set(((tagsRes.data ?? []) as PlaceTagRow[]).map((t) => t.tag)));
+  const ratings = reviews
+    .map((r) => r.rating)
+    .filter((rating): rating is number => typeof rating === "number" && Number.isFinite(rating));
+  const ratingCount = ratings.length;
+  const ratingAverage = ratingCount > 0
+    ? Math.round((ratings.reduce((sum, rating) => sum + rating, 0) / ratingCount) * 10) / 10
+    : null;
+  return { reviews, tags, ratingAverage, ratingCount };
 }
 
 export async function saveCommunityReview(placeId: string, draft: ReviewDraft): Promise<boolean> {
-  const body = draft.body.trim();
+  const body = draft.body.trim().slice(0, MAX_REVIEW_BODY);
   if (!body) return false;
 
   const { data, error: userError } = await supabase.auth.getUser();
@@ -55,22 +73,14 @@ export async function saveCommunityReview(placeId: string, draft: ReviewDraft): 
   if (!data.user) return false;
 
   const rating = draft.rating ?? null;
-  if (draft.id) {
-    const res = await supabase
-      .from("reviews")
-      .update({ body, rating })
-      .eq("id", draft.id)
-      .eq("user_id", data.user.id);
-    if (res.error) throw res.error;
-    return true;
-  }
-
-  await anchorPlace(placeId);
-  const res = await supabase
-    .from("reviews")
-    .insert({ user_id: data.user.id, place_id: placeId, body, rating });
+  const res = await supabase.rpc("save_place_review", {
+    target_place_id: placeId,
+    review_id: draft.id ?? null,
+    review_body: body,
+    review_rating: rating,
+  });
   if (res.error) throw res.error;
-  return true;
+  return !!res.data;
 }
 
 export async function deleteCommunityReview(id: string): Promise<boolean> {
@@ -78,13 +88,9 @@ export async function deleteCommunityReview(id: string): Promise<boolean> {
   if (userError) throw userError;
   if (!data.user) return false;
 
-  const res = await supabase
-    .from("reviews")
-    .delete()
-    .eq("id", id)
-    .eq("user_id", data.user.id);
+  const res = await supabase.rpc("delete_place_review", { review_id: id });
   if (res.error) throw res.error;
-  return true;
+  return !!res.data;
 }
 
 export async function addPlaceTag(placeId: string, rawTag: string): Promise<boolean> {

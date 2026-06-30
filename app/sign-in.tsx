@@ -55,7 +55,7 @@ export default function SignIn() {
       const { error } = await supabase.auth.setSession({ access_token, refresh_token });
       if (error) { setError(`session: ${error.message}`); return; }
     } else {
-      setError(`callback returned no tokens: ${result.url.slice(0, 100)}`);
+      setError("callback returned no tokens. Check Supabase redirect URL config.");
     }
   }
 

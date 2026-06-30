@@ -1,22 +1,29 @@
-import { checkIn, getVisitCount } from "../../src/api/checkins";
+import { checkIn, getVisitCount, getVisitStatus } from "../../src/api/checkins";
 import { supabase } from "../../src/lib/supabase";
 
 jest.mock("../../src/lib/supabase", () => ({
-  supabase: { auth: { getUser: jest.fn() }, from: jest.fn() },
+  supabase: { auth: { getUser: jest.fn() }, from: jest.fn(), rpc: jest.fn() },
 }));
 
 beforeEach(() => jest.clearAllMocks());
 
 test("getVisitCount returns the row count scoped to the signed-in user and place", async () => {
   (supabase.auth.getUser as jest.Mock).mockResolvedValue({ data: { user: { id: "u1" } } });
-  const eqPlace = jest.fn().mockResolvedValue({ count: 3, error: null });
-  const eqUser = jest.fn().mockReturnValue({ eq: eqPlace });
-  const select = jest.fn().mockReturnValue({ eq: eqUser });
-  (supabase.from as jest.Mock).mockReturnValue({ select });
+  const countEqPlace = jest.fn().mockResolvedValue({ count: 3, error: null });
+  const countEqUser = jest.fn().mockReturnValue({ eq: countEqPlace });
+  const countSelect = jest.fn().mockReturnValue({ eq: countEqUser });
+  const latestLimit = jest.fn().mockResolvedValue({ data: [], error: null });
+  const latestOrder = jest.fn().mockReturnValue({ limit: latestLimit });
+  const latestEqPlace = jest.fn().mockReturnValue({ order: latestOrder });
+  const latestEqUser = jest.fn().mockReturnValue({ eq: latestEqPlace });
+  const latestSelect = jest.fn().mockReturnValue({ eq: latestEqUser });
+  (supabase.from as jest.Mock)
+    .mockReturnValueOnce({ select: countSelect })
+    .mockReturnValueOnce({ select: latestSelect });
 
   await expect(getVisitCount("p1")).resolves.toBe(3);
-  expect(eqUser).toHaveBeenCalledWith("user_id", "u1");
-  expect(eqPlace).toHaveBeenCalledWith("place_id", "p1");
+  expect(countEqUser).toHaveBeenCalledWith("user_id", "u1");
+  expect(countEqPlace).toHaveBeenCalledWith("place_id", "p1");
 });
 
 test("getVisitCount returns 0 when signed out and never queries", async () => {
@@ -25,19 +32,37 @@ test("getVisitCount returns 0 when signed out and never queries", async () => {
   expect(supabase.from).not.toHaveBeenCalled();
 });
 
-test("checkIn anchors the place, records a visit, and returns the new count", async () => {
-  (supabase.auth.getUser as jest.Mock).mockResolvedValue({ data: { user: { id: "u1" } }, error: null });
-  const upsert = jest.fn().mockResolvedValue({ error: null });
-  const insert = jest.fn().mockResolvedValue({ error: null });
-  const eqPlace = jest.fn().mockResolvedValue({ count: 1, error: null });
-  const eqUser = jest.fn().mockReturnValue({ eq: eqPlace });
-  const select = jest.fn().mockReturnValue({ eq: eqUser });
-  (supabase.from as jest.Mock).mockImplementation((table: string) =>
-    table === "places" ? { upsert } : { insert, select },
-  );
+test("getVisitStatus reports recent check-ins without exposing cooldown copy", async () => {
+  jest.spyOn(Date, "now").mockReturnValue(new Date("2026-06-30T02:00:00Z").getTime());
+  (supabase.auth.getUser as jest.Mock).mockResolvedValue({ data: { user: { id: "u1" } } });
+  const countEqPlace = jest.fn().mockResolvedValue({ count: 3, error: null });
+  const countEqUser = jest.fn().mockReturnValue({ eq: countEqPlace });
+  const countSelect = jest.fn().mockReturnValue({ eq: countEqUser });
+  const latestLimit = jest.fn().mockResolvedValue({
+    data: [{ created_at: "2026-06-30T01:15:00Z" }],
+    error: null,
+  });
+  const latestOrder = jest.fn().mockReturnValue({ limit: latestLimit });
+  const latestEqPlace = jest.fn().mockReturnValue({ order: latestOrder });
+  const latestEqUser = jest.fn().mockReturnValue({ eq: latestEqPlace });
+  const latestSelect = jest.fn().mockReturnValue({ eq: latestEqUser });
+  (supabase.from as jest.Mock)
+    .mockReturnValueOnce({ select: countSelect })
+    .mockReturnValueOnce({ select: latestSelect });
 
-  await expect(checkIn("p1")).resolves.toBe(1);
-  expect(insert).toHaveBeenCalledWith({ user_id: "u1", place_id: "p1" });
+  await expect(getVisitStatus("p1")).resolves.toEqual({ count: 3, checkedInRecently: true });
+  jest.restoreAllMocks();
+});
+
+test("checkIn uses the throttled RPC and returns the visit status", async () => {
+  (supabase.auth.getUser as jest.Mock).mockResolvedValue({ data: { user: { id: "u1" } }, error: null });
+  (supabase.rpc as jest.Mock).mockResolvedValue({
+    data: [{ visit_count: 3, checked_in: false, checked_in_recently: true }],
+    error: null,
+  });
+
+  await expect(checkIn("p1")).resolves.toEqual({ count: 3, checkedIn: false, checkedInRecently: true });
+  expect(supabase.rpc).toHaveBeenCalledWith("check_in_place", { target_place_id: "p1" });
 });
 
 test("checkIn returns null when signed out", async () => {

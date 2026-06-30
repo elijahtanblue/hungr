@@ -3,34 +3,65 @@ import { supabase } from "../lib/supabase";
 // Lightweight, private check-ins. The count is the user's own memory aid and a personalization
 // signal (first time vs regular); it is protected by own-row RLS and never shown to anyone else.
 
-// Record one visit. Anchors the place_id first (same pattern as setUserPlaceState) so the FK holds.
-// Returns the user's new total visit count for the place, or null if not signed in.
-export async function checkIn(placeId: string): Promise<number | null> {
+export type VisitStatus = { count: number; checkedInRecently: boolean };
+export type CheckInResult = VisitStatus & { checkedIn: boolean };
+
+function isRecent(iso?: string): boolean {
+  if (!iso) return false;
+  const time = new Date(iso).getTime();
+  if (!Number.isFinite(time)) return false;
+  return Date.now() - time < 2 * 60 * 60 * 1000;
+}
+
+function firstRow(data: unknown): any | null {
+  if (Array.isArray(data)) return data[0] ?? null;
+  if (data && typeof data === "object") return data;
+  return null;
+}
+
+// Record one visit through the server-side throttle. Returns the user's visit status for the
+// place, or null if not signed in.
+export async function checkIn(placeId: string): Promise<CheckInResult | null> {
   const { data, error: userError } = await supabase.auth.getUser();
   if (userError) throw userError;
   if (!data.user) return null;
 
-  const place = await supabase
-    .from("places")
-    .upsert({ place_id: placeId }, { onConflict: "place_id", ignoreDuplicates: true });
-  if (place.error) throw place.error;
-
-  const insert = await supabase.from("check_ins").insert({ user_id: data.user.id, place_id: placeId });
-  if (insert.error) throw insert.error;
-
-  return getVisitCount(placeId);
+  const { data: rpcData, error } = await supabase.rpc("check_in_place", { target_place_id: placeId });
+  if (error) throw error;
+  const row = firstRow(rpcData);
+  return {
+    count: Number(row?.visit_count ?? 0),
+    checkedIn: row?.checked_in === true,
+    checkedInRecently: row?.checked_in_recently === true,
+  };
 }
 
-// How many times the signed-in user has checked in here. Zero when signed out or never visited.
-export async function getVisitCount(placeId: string): Promise<number> {
+// Count and recent state for the signed-in user. Recent means the last check-in is within the
+// internal two-hour throttle window.
+export async function getVisitStatus(placeId: string): Promise<VisitStatus> {
   const { data } = await supabase.auth.getUser();
-  if (!data.user) return 0;
+  if (!data.user) return { count: 0, checkedInRecently: false };
 
-  const { count, error } = await supabase
+  const countRes = await supabase
     .from("check_ins")
     .select("id", { count: "exact", head: true })
     .eq("user_id", data.user.id)
     .eq("place_id", placeId);
-  if (error) return 0;
-  return count ?? 0;
+  if (countRes.error) return { count: 0, checkedInRecently: false };
+
+  const latestRes = await supabase
+    .from("check_ins")
+    .select("created_at")
+    .eq("user_id", data.user.id)
+    .eq("place_id", placeId)
+    .order("created_at", { ascending: false })
+    .limit(1);
+
+  const latest = Array.isArray(latestRes.data) ? latestRes.data[0]?.created_at : undefined;
+  return { count: countRes.count ?? 0, checkedInRecently: !latestRes.error && isRecent(latest) };
+}
+
+// How many times the signed-in user has checked in here. Zero when signed out or never visited.
+export async function getVisitCount(placeId: string): Promise<number> {
+  return (await getVisitStatus(placeId)).count;
 }

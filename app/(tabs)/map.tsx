@@ -14,9 +14,9 @@ import { PlacesListSheet } from "../../src/components/PlacesListSheet";
 import { PlaceFeedbackPrompt } from "../../src/components/PlaceFeedbackPrompt";
 import { searchNearby, withFirstPartyCuisines, withUserPlaceStates, applyFilters, mergePlaces } from "../../src/api/places";
 import { loadSuppressedCuisines } from "../../src/api/preferences";
-import { setUserPlaceState, savePlaceFeedback } from "../../src/api/userPlaces";
-import { saveCommunityReview } from "../../src/api/community";
-import { checkIn, getVisitCount } from "../../src/api/checkins";
+import { setUserPlaceState } from "../../src/api/userPlaces";
+import { saveReviewFeedback } from "../../src/api/reviewFeedback";
+import { checkIn, getVisitStatus, type VisitStatus } from "../../src/api/checkins";
 import { friendBeens } from "../../src/api/social";
 import { useFilters } from "../../src/store/useFilters";
 import { useDebouncedValue } from "../../src/hooks/useDebouncedValue";
@@ -38,7 +38,7 @@ export default function Map() {
   const [feedback, setFeedback] = useState<{ place: Place; state: "been" | "avoid" } | null>(null);
   const [friendsBeen, setFriendsBeen] = useState<Set<string>>(new Set());
   const [friendsOnly, setFriendsOnly] = useState(false);
-  const [visitCount, setVisitCount] = useState(0);
+  const [visitStatus, setVisitStatus] = useState<VisitStatus>({ count: 0, checkedInRecently: false });
   const { selected: sel, suppressed, setSuppressed } = useFilters();
 
   // Debounce the query so we do not hit the Places proxy on every keystroke.
@@ -69,9 +69,9 @@ export default function Map() {
 
   // The signed-in user's private visit count for the open place (never shown to anyone else).
   useEffect(() => {
-    if (!selected) { setVisitCount(0); return; }
+    if (!selected) { setVisitStatus({ count: 0, checkedInRecently: false }); return; }
     let active = true;
-    getVisitCount(selected.placeId).then((n) => { if (active) setVisitCount(n); }).catch(() => {});
+    getVisitStatus(selected.placeId).then((status) => { if (active) setVisitStatus(status); }).catch(() => {});
     return () => { active = false; };
   }, [selected]);
 
@@ -160,9 +160,14 @@ export default function Map() {
           place={currentSelected}
           onSetState={setState}
           onOpenDetail={(placeId) => router.push({ pathname: "/place/[placeId]", params: { placeId } })}
-          visitCount={visitCount}
+          visitCount={visitStatus.count}
+          checkedInRecently={visitStatus.checkedInRecently}
           onCheckIn={() => {
-            checkIn(currentSelected.placeId).then((n) => { if (n !== null) setVisitCount(n); }).catch(() => {});
+            checkIn(currentSelected.placeId)
+              .then((status) => {
+                if (status) setVisitStatus({ count: status.count, checkedInRecently: status.checkedInRecently });
+              })
+              .catch(() => {});
           }}
         />
       )}
@@ -197,14 +202,7 @@ export default function Map() {
           state={feedback.state}
           onClose={() => setFeedback(null)}
           onSubmit={(r) => {
-            savePlaceFeedback(feedback.place.placeId, {
-              rating: feedback.state === "been" ? r.rating : null,
-              avoidReason: feedback.state === "avoid" ? r.reason : null,
-              note: r.note.trim() || null,
-            }).catch(() => {});
-            if (feedback.state === "been" && r.note.trim()) {
-              saveCommunityReview(feedback.place.placeId, { body: r.note, rating: r.rating }).catch(() => {});
-            }
+            saveReviewFeedback(feedback.place.placeId, feedback.state, r).catch(() => {});
           }}
         />
       )}

@@ -53,8 +53,8 @@ test("savePlaceFeedback writes only the provided fields, scoped to the owner's r
   const update = jest.fn().mockReturnValue({ eq: eqUser });
   (supabase.from as jest.Mock).mockReturnValue({ update });
 
-  await expect(savePlaceFeedback("p1", { rating: 4, avoidReason: null, note: "great" })).resolves.toBe(true);
-  expect(update).toHaveBeenCalledWith({ rating: 4, avoid_reason: null, note: "great" });
+  await expect(savePlaceFeedback("p1", { rating: 4.5, avoidReason: null, note: "great" })).resolves.toBe(true);
+  expect(update).toHaveBeenCalledWith({ rating: 4.5, avoid_reason: null, note: "great" });
   expect(eqUser).toHaveBeenCalledWith("user_id", "u1");
   expect(eqPlace).toHaveBeenCalledWith("place_id", "p1");
 });

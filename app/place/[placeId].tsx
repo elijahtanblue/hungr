@@ -10,6 +10,7 @@ import {
   deleteCommunityReview,
   getCommunity,
   saveCommunityReview,
+  type Community,
   type CommunityReview,
   type ReviewDraft,
 } from "../../src/api/community";
@@ -28,12 +29,17 @@ function priceLabel(level?: string): string {
   }
 }
 
+function ratingLabel(value: number): string {
+  return Number.isInteger(value) ? value.toFixed(1) : `${Math.round(value * 10) / 10}`;
+}
+
 export default function PlaceDetail() {
   const insets = useSafeAreaInsets();
   const { placeId } = useLocalSearchParams<{ placeId: string }>();
   const [details, setDetails] = useState<PlaceDetails | null>(null);
   const [grounded, setGrounded] = useState<Grounded | null>(null);
-  const [community, setCommunity] = useState<{ reviews: CommunityReview[]; tags: string[] } | null>(null);
+  const [community, setCommunity] = useState<Community | null>(null);
+  const [reviewSource, setReviewSource] = useState<"hungr" | "google">("hungr");
   const [loading, setLoading] = useState(true);
 
   function loadCommunity() {
@@ -108,15 +114,46 @@ export default function PlaceDetail() {
                 <Text style={s.mapsLink}>View on Google Maps</Text>
               </Pressable>
             )}
-            {details && <GoogleReviewsBlock details={details} />}
             {grounded && <GroundedBlock grounded={grounded} />}
-            <CommunityBlock
-              reviews={community?.reviews ?? []}
-              tags={community?.tags ?? []}
-              onSaveReview={handleSaveReview}
-              onDeleteReview={handleDeleteReview}
-              onAddTag={handleAddTag}
-            />
+            <View style={s.ratingPills}>
+              {community?.ratingAverage !== null && community?.ratingAverage !== undefined && community.ratingCount > 0 && (
+                <View style={[s.ratingPill, s.hungrPill]}>
+                  <Text style={s.hungrPillTxt}>hungr {"★"} {ratingLabel(community.ratingAverage)} ({community.ratingCount})</Text>
+                </View>
+              )}
+              {details?.rating !== undefined && (
+                <View style={s.ratingPill}>
+                  <Text style={s.googlePillTxt}>Google {"★"} {ratingLabel(details.rating)}{details.userRatingCount ? ` (${details.userRatingCount})` : ""}</Text>
+                </View>
+              )}
+            </View>
+            <View style={s.reviewTabs}>
+              <Pressable
+                style={[s.tab, reviewSource === "hungr" && s.tabOn]}
+                onPress={() => setReviewSource("hungr")}
+                accessibilityRole="button"
+              >
+                <Text style={[s.tabTxt, reviewSource === "hungr" && s.tabTxtOn]}>hungr reviews</Text>
+              </Pressable>
+              <Pressable
+                style={[s.tab, reviewSource === "google" && s.tabOn]}
+                onPress={() => setReviewSource("google")}
+                accessibilityRole="button"
+              >
+                <Text style={[s.tabTxt, reviewSource === "google" && s.tabTxtOn]}>Google reviews</Text>
+              </Pressable>
+            </View>
+            {reviewSource === "hungr" ? (
+              <CommunityBlock
+                reviews={community?.reviews ?? []}
+                tags={community?.tags ?? []}
+                onSaveReview={handleSaveReview}
+                onDeleteReview={handleDeleteReview}
+                onAddTag={handleAddTag}
+              />
+            ) : (
+              details && <GoogleReviewsBlock details={details} />
+            )}
           </>
         )}
       </ScrollView>
@@ -133,4 +170,14 @@ const s = StyleSheet.create({
   meta: { fontSize: 14, fontWeight: "600", color: colors.muted },
   address: { fontSize: 14, color: colors.muted },
   mapsLink: { fontSize: 14, fontWeight: "600", color: colors.slate, textDecorationLine: "underline" },
+  ratingPills: { flexDirection: "row", flexWrap: "wrap", gap: space.sm },
+  ratingPill: { borderColor: colors.hair, borderWidth: 1, borderRadius: 999, paddingHorizontal: space.md, paddingVertical: 7, backgroundColor: colors.surface },
+  hungrPill: { borderColor: colors.accent, backgroundColor: "#FFF8DF" },
+  hungrPillTxt: { color: colors.accentPress, fontWeight: "800", fontSize: 13 },
+  googlePillTxt: { color: colors.slate, fontWeight: "800", fontSize: 13 },
+  reviewTabs: { flexDirection: "row", gap: space.sm },
+  tab: { flex: 1, minHeight: 40, borderRadius: 999, borderColor: colors.hair, borderWidth: 1, alignItems: "center", justifyContent: "center", backgroundColor: colors.surface },
+  tabOn: { backgroundColor: colors.accent, borderColor: colors.accent },
+  tabTxt: { color: colors.muted, fontWeight: "800", fontSize: 13 },
+  tabTxtOn: { color: colors.onAccent },
 });

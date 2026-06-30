@@ -44,11 +44,11 @@ test("CommunityBlock lets a signed-in user write a hungr review", async () => {
   await render(<CommunityBlock reviews={[]} tags={[]} onSaveReview={onSaveReview} />);
 
   await fireEvent.changeText(screen.getByPlaceholderText("What should future you remember?"), "Get the chilli oil noodles.");
-  await fireEvent.press(screen.getByText("5"));
+  await fireEvent.press(screen.getByLabelText("4.5 stars"));
   await fireEvent.press(screen.getByText("Post review"));
 
   await waitFor(() =>
-    expect(onSaveReview).toHaveBeenCalledWith({ body: "Get the chilli oil noodles.", rating: 5 }),
+    expect(onSaveReview).toHaveBeenCalledWith({ body: "Get the chilli oil noodles.", rating: 4.5 }),
   );
 });
 
@@ -70,6 +70,7 @@ test("CommunityBlock lets a user edit and delete only their own review", async (
 
   expect(screen.getAllByText("Edit")).toHaveLength(1);
   expect(screen.getAllByText("Delete")).toHaveLength(1);
+  expect(screen.getAllByText("Jun 30, 2026")).toHaveLength(2);
 
   await fireEvent.press(screen.getByText("Edit"));
   await fireEvent.changeText(screen.getByDisplayValue("Original"), "Updated");

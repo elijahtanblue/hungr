@@ -2,6 +2,15 @@ import { useState } from "react";
 import { View, Text, Pressable, StyleSheet, TextInput } from "react-native";
 import { colors, radius, space } from "../theme";
 import type { CommunityReview, ReviewDraft } from "../api/community";
+import { StarRatingInput } from "./StarRatingInput";
+
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+function formatDate(iso: string): string {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return "";
+  return `${MONTHS[date.getUTCMonth()]} ${date.getUTCDate()}, ${date.getUTCFullYear()}`;
+}
 
 // First party content. Golden world, the hungr moat. Kept visually separate from the Google
 // (slate) blocks above.
@@ -113,22 +122,7 @@ export function CommunityBlock({
       )}
       {onSaveReview && (
         <View style={s.composer}>
-          <View style={s.ratingRow}>
-            {[1, 2, 3, 4, 5].map((n) => {
-              const selected = rating === n;
-              return (
-                <Pressable
-                  key={n}
-                  style={[s.ratingBtn, selected && s.ratingBtnOn]}
-                  onPress={() => setRating(n)}
-                  accessibilityRole="button"
-                  accessibilityState={{ selected }}
-                >
-                  <Text style={[s.ratingTxt, selected && s.ratingTxtOn]}>{n}</Text>
-                </Pressable>
-              );
-            })}
-          </View>
+          <StarRatingInput value={rating} onChange={setRating} />
           <TextInput
             style={s.input}
             placeholder="What should future you remember?"
@@ -159,7 +153,10 @@ export function CommunityBlock({
       ) : (
         reviews.map((r) => (
           <View key={r.id} style={s.review}>
-            {r.rating !== undefined && <Text style={s.rating}>{"★"} {r.rating}</Text>}
+            <View style={s.reviewTop}>
+              {r.rating !== undefined && <Text style={s.rating}>{"★"} {r.rating}</Text>}
+              <Text style={s.time}>{formatDate(r.createdAt)}</Text>
+            </View>
             <Text style={s.text}>{r.body}</Text>
             {r.isMine && (
               <View style={s.reviewActions}>
@@ -191,11 +188,6 @@ const s = StyleSheet.create({
   smallBtn: { minHeight: 40, justifyContent: "center", backgroundColor: colors.accent, borderRadius: radius.md, paddingHorizontal: space.md },
   smallBtnTxt: { color: colors.onAccent, fontWeight: "800", fontSize: 13 },
   composer: { gap: space.sm, paddingTop: space.xs },
-  ratingRow: { flexDirection: "row", gap: space.xs },
-  ratingBtn: { width: 34, height: 34, borderRadius: 17, borderColor: colors.hair, borderWidth: 1, alignItems: "center", justifyContent: "center", backgroundColor: colors.surface },
-  ratingBtnOn: { backgroundColor: "#FFE2A8", borderColor: colors.accentPress },
-  ratingTxt: { color: colors.ink, fontWeight: "800", fontSize: 13 },
-  ratingTxtOn: { color: colors.onAccent },
   input: { minHeight: 84, borderColor: colors.hair, borderWidth: 1, borderRadius: radius.md, padding: space.md, color: colors.ink, textAlignVertical: "top", backgroundColor: colors.canvas },
   composerActions: { flexDirection: "row", justifyContent: "flex-end", gap: space.sm },
   cancel: { minHeight: 40, justifyContent: "center", paddingHorizontal: space.md },
@@ -204,7 +196,9 @@ const s = StyleSheet.create({
   postTxt: { color: colors.onAccent, fontWeight: "800" },
   disabled: { opacity: 0.45 },
   review: { gap: 2, paddingBottom: space.sm, borderBottomColor: colors.hair, borderBottomWidth: 1 },
+  reviewTop: { flexDirection: "row", justifyContent: "space-between", gap: space.md },
   rating: { fontSize: 13, fontWeight: "700", color: colors.accentPress },
+  time: { fontSize: 12, color: colors.muted, fontWeight: "600" },
   text: { fontSize: 14, color: colors.ink, lineHeight: 20 },
   reviewActions: { flexDirection: "row", gap: space.md, marginTop: space.xs },
   linkBtn: { paddingVertical: 2 },

@@ -1,20 +1,32 @@
-import { View, Text, Pressable, StyleSheet } from "react-native";
+import { useEffect, useRef } from "react";
+import { Animated, View, Text, Pressable, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { colors, radius, space } from "../theme";
 import type { Place, PlaceState } from "../domain/types";
 
 export function PlaceSheet({
-  place, onSetState, onOpenDetail, visitCount, onCheckIn,
+  place, onSetState, onOpenDetail, visitCount, checkedInRecently = false, onCheckIn,
 }: {
   place: Place;
   onSetState: (placeId: string, state: PlaceState) => void;
   onOpenDetail?: (placeId: string) => void;
   visitCount?: number;
+  checkedInRecently?: boolean;
   onCheckIn?: () => void;
 }) {
+  const checkScale = useRef(new Animated.Value(1)).current;
   const isGo = place.state === "go";
   const isBeen = place.state === "been";
   const isAvoid = place.state === "avoid";
+
+  useEffect(() => {
+    if (!checkedInRecently) return;
+    Animated.sequence([
+      Animated.timing(checkScale, { toValue: 1.08, duration: 120, useNativeDriver: true }),
+      Animated.spring(checkScale, { toValue: 1, friction: 5, tension: 90, useNativeDriver: true }),
+    ]).start();
+  }, [checkedInRecently, checkScale]);
+
   return (
     <View style={s.sheet}>
       <View style={s.grab} />
@@ -43,10 +55,24 @@ export function PlaceSheet({
       </View>
       {onCheckIn && (
         <View style={s.checkInRow}>
-          <Pressable style={s.checkIn} onPress={onCheckIn} accessibilityRole="button" accessibilityLabel={`Check in at ${place.name}`}>
-            <Ionicons name="add-circle-outline" size={16} color={colors.been} />
-            <Text style={s.checkInTxt}>Check in</Text>
-          </Pressable>
+          <Animated.View style={{ transform: [{ scale: checkScale }] }}>
+            <Pressable
+              style={[s.checkIn, checkedInRecently && s.checkInOn]}
+              onPress={onCheckIn}
+              accessibilityRole="button"
+              accessibilityLabel={`Check in at ${place.name}`}
+            >
+              <Ionicons
+                name={checkedInRecently ? "checkmark-circle" : "add-circle-outline"}
+                size={16}
+                color={checkedInRecently ? colors.been : colors.been}
+              />
+              <Text style={[s.checkInTxt, checkedInRecently && s.checkInTxtOn]}>
+                {checkedInRecently ? "Checked in" : "Check in"}
+              </Text>
+            </Pressable>
+          </Animated.View>
+          {checkedInRecently && <Text style={s.checkedTxt}>You've checked in</Text>}
           {visitCount !== undefined && visitCount > 0 && (
             <Text style={s.visitCount}>Visited {visitCount}{visitCount === 1 ? " time" : " times"} · only you can see this</Text>
           )}
@@ -79,7 +105,10 @@ const s = StyleSheet.create({
   selectedTxt: { color: colors.onAccent },
   checkInRow: { flexDirection: "row", alignItems: "center", gap: space.sm, marginTop: space.md, flexWrap: "wrap" },
   checkIn: { flexDirection: "row", alignItems: "center", gap: space.xs, borderColor: colors.hair, borderWidth: 1, borderRadius: radius.pill, paddingVertical: space.xs, paddingHorizontal: space.md },
+  checkInOn: { backgroundColor: "#EAF3E7", borderColor: colors.been },
   checkInTxt: { color: colors.ink, fontWeight: "700", fontSize: 13 },
+  checkInTxtOn: { color: colors.been },
+  checkedTxt: { color: colors.been, fontSize: 12, fontWeight: "800" },
   visitCount: { color: colors.muted, fontSize: 12, flexShrink: 1 },
   detail: { marginTop: space.sm, alignItems: "center", paddingVertical: space.xs },
   detailTxt: { color: colors.muted, fontWeight: "600", fontSize: 13 },

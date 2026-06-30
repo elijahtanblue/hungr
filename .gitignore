@@ -44,3 +44,15 @@ yarn-error.*
 
 # founder seed secrets (local only)
 scripts/.env.seed
+
+# local brainstorming mockups
+.superpowers/
+scripts/security-audit.mjs
+security/pentest-initial.csv
+security/pentest-final.csv
+security/pentest-report.xlsx
+security/pentest-initial.json
+security/pentest-final.json
+supabase/migrations/0011_security_hardening.sql
+docs/superpowers/plans/2026-06-30-review-checkin.md
+docs/superpowers/specs/2026-06-30-review-checkin-design.md

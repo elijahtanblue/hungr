@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { View, Text, Pressable, TextInput, StyleSheet } from "react-native";
 import { colors, radius, space } from "../theme";
+import { StarRatingInput } from "./StarRatingInput";
 
 type FeedbackState = "been" | "avoid";
 
@@ -31,32 +32,18 @@ export function PlaceFeedbackPrompt({
       <View style={s.card}>
         <Text style={s.title}>{isBeen ? "How was the food?" : "Why avoid this spot?"}</Text>
         <Text style={s.place} numberOfLines={1}>{placeName}</Text>
+        <StarRatingInput value={rating} onChange={setRating} />
         {isBeen ? (
           <>
-            <View style={s.ratingRow}>
-              {[1, 2, 3, 4, 5].map((n) => {
-                const selected = rating === n;
-                return (
-                  <Pressable
-                    key={n}
-                    onPress={() => setRating(n)}
-                    style={[s.ratingBtn, selected && s.choiceOn]}
-                    accessibilityRole="button"
-                    accessibilityState={{ selected }}
-                  >
-                    <Text style={[s.choiceTxt, selected && s.choiceTxtOn]}>{n}</Text>
-                  </Pressable>
-                );
-              })}
-            </View>
             <TextInput
               style={s.input}
-              placeholder="One quick thought (optional)"
+              placeholder="Leave a short review"
               placeholderTextColor={colors.muted}
               value={note}
               onChangeText={setNote}
               multiline
             />
+            <Text style={s.prompt}>Be the first in your friend group to review this spot.</Text>
           </>
         ) : (
           <>
@@ -78,7 +65,7 @@ export function PlaceFeedbackPrompt({
             </View>
             <TextInput
               style={s.input}
-              placeholder="Tell future you why (optional)"
+              placeholder="Leave a short review"
               placeholderTextColor={colors.muted}
               value={note}
               onChangeText={setNote}
@@ -91,7 +78,7 @@ export function PlaceFeedbackPrompt({
             <Text style={s.skipTxt}>Skip</Text>
           </Pressable>
           <Pressable style={s.done} onPress={done} accessibilityRole="button">
-            <Text style={s.doneTxt}>Done</Text>
+            <Text style={s.doneTxt}>Post</Text>
           </Pressable>
         </View>
       </View>
@@ -104,14 +91,13 @@ const s = StyleSheet.create({
   card: { backgroundColor: colors.surface, borderColor: colors.hair, borderWidth: 1, borderRadius: radius.lg, padding: space.lg, gap: space.md },
   title: { fontSize: 20, fontWeight: "800", color: colors.ink },
   place: { fontSize: 14, fontWeight: "600", color: colors.muted },
-  ratingRow: { flexDirection: "row", gap: space.sm },
-  ratingBtn: { width: 44, height: 44, borderRadius: 22, borderColor: colors.hair, borderWidth: 1, alignItems: "center", justifyContent: "center", backgroundColor: colors.surface },
   reasonGrid: { flexDirection: "row", flexWrap: "wrap", gap: space.sm },
   reasonBtn: { borderColor: colors.hair, borderWidth: 1, borderRadius: radius.pill, paddingHorizontal: space.md, minHeight: 40, justifyContent: "center", backgroundColor: colors.surface },
   choiceOn: { backgroundColor: "#FFE2A8", borderColor: colors.accentPress },
   choiceTxt: { color: colors.ink, fontWeight: "700" },
   choiceTxtOn: { color: colors.onAccent },
   input: { minHeight: 72, borderColor: colors.hair, borderWidth: 1, borderRadius: radius.md, padding: space.md, color: colors.ink, textAlignVertical: "top", backgroundColor: colors.canvas },
+  prompt: { color: colors.muted, fontSize: 13, lineHeight: 18 },
   actions: { flexDirection: "row", justifyContent: "flex-end", gap: space.sm },
   skip: { minHeight: 44, borderRadius: radius.md, paddingHorizontal: space.md, justifyContent: "center" },
   skipTxt: { color: colors.muted, fontWeight: "700" },
