@@ -10,6 +10,7 @@ export const colors = {
   onAccent: "#241A06",
   been: "#5C8A5A",
   avoid: "#C0563D",
+  loved: "#DB5A92",
   slate: "#3E6B7A",
 } as const;
 

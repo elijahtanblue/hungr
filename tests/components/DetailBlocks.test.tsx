@@ -3,6 +3,11 @@ import { GoogleReviewsBlock } from "../../src/components/GoogleReviewsBlock";
 import { GroundedBlock } from "../../src/components/GroundedBlock";
 import { CommunityBlock } from "../../src/components/CommunityBlock";
 import type { PlaceDetails } from "../../src/api/placeDetails";
+import { translateGoogleReview } from "../../src/api/googleReviewTranslation";
+
+jest.mock("../../src/api/googleReviewTranslation", () => ({
+  translateGoogleReview: jest.fn(),
+}));
 
 test("GoogleReviewsBlock shows a review and always renders attribution", async () => {
   const details: PlaceDetails = {
@@ -20,6 +25,25 @@ test("GoogleReviewsBlock shows a review and always renders attribution", async (
   expect(screen.getByText("The mala numbs.")).toBeTruthy();
   expect(screen.getByText("Powered by Google")).toBeTruthy(); // attribution must render
   expect(screen.getAllByTestId("google-review-card")).toHaveLength(2);
+  expect(screen.getByText("★ 5.0")).toBeTruthy();
+  expect(screen.getByText("★ 4.0")).toBeTruthy();
+});
+
+test("GoogleReviewsBlock toggles an individual Google review translation", async () => {
+  (translateGoogleReview as jest.Mock).mockResolvedValue("The noodles were excellent.");
+  const details: PlaceDetails = {
+    placeId: "p1",
+    name: "Spicy World",
+    reviews: [{ author: "Jane", rating: 5, text: "Los fideos estuvieron excelentes.", relativeTime: "2 weeks ago" }],
+    attribution: "Powered by Google",
+  };
+
+  await render(<GoogleReviewsBlock details={details} />);
+  await fireEvent.press(screen.getByText("Translate"));
+
+  expect(await screen.findByText("The noodles were excellent.")).toBeTruthy();
+  await fireEvent.press(screen.getByText("Original"));
+  expect(screen.getByText("Los fideos estuvieron excelentes.")).toBeTruthy();
 });
 
 test("GroundedBlock shows the answer and its source link", async () => {
@@ -52,6 +76,55 @@ test("CommunityBlock lets a signed-in user write a hungr review", async () => {
   );
 });
 
+test("CommunityBlock attaches selected photos after the review is saved", async () => {
+  const onSaveReview = jest.fn().mockResolvedValue("r-new");
+  const onPickPhotos = jest.fn().mockResolvedValue([{ uri: "file:///tmp/food.jpg", fileName: "food.jpg" }]);
+  const onAttachPhotos = jest.fn().mockResolvedValue(undefined);
+
+  await render(
+    <CommunityBlock
+      reviews={[]}
+      tags={[]}
+      onSaveReview={onSaveReview}
+      onPickPhotos={onPickPhotos}
+      onAttachPhotos={onAttachPhotos}
+    />,
+  );
+
+  await fireEvent.press(screen.getByText("Add photo"));
+  expect(await screen.findByText("1 photo selected")).toBeTruthy();
+  await fireEvent.changeText(screen.getByPlaceholderText("What should future you remember?"), "Good laksa.");
+  await fireEvent.press(screen.getByText("Post review"));
+
+  await waitFor(() => expect(onAttachPhotos).toHaveBeenCalledWith("r-new", [{ uri: "file:///tmp/food.jpg", fileName: "food.jpg" }]));
+});
+
+test("CommunityBlock exposes search, sort, filters, and load more controls for hungr reviews", async () => {
+  const onFiltersChange = jest.fn();
+  const onLoadMore = jest.fn();
+
+  await render(
+    <CommunityBlock
+      reviews={[]}
+      tags={[]}
+      filters={{ search: "", sort: "newest", photosOnly: false }}
+      onFiltersChange={onFiltersChange}
+      hasMore
+      onLoadMore={onLoadMore}
+    />,
+  );
+
+  await fireEvent.changeText(screen.getByPlaceholderText("Search hungr reviews"), "ramen");
+  await fireEvent.press(screen.getByText("Popular"));
+  await fireEvent.press(screen.getByText("With photos"));
+  await fireEvent.press(screen.getByText("Load more"));
+
+  expect(onFiltersChange).toHaveBeenCalledWith(expect.objectContaining({ search: "ramen" }));
+  expect(onFiltersChange).toHaveBeenCalledWith(expect.objectContaining({ sort: "popular" }));
+  expect(onFiltersChange).toHaveBeenCalledWith(expect.objectContaining({ photosOnly: true }));
+  expect(onLoadMore).toHaveBeenCalled();
+});
+
 test("CommunityBlock lets a user edit and delete only their own review", async () => {
   const onSaveReview = jest.fn().mockResolvedValue(undefined);
   const onDeleteReview = jest.fn().mockResolvedValue(undefined);
@@ -60,8 +133,14 @@ test("CommunityBlock lets a user edit and delete only their own review", async (
     <CommunityBlock
       tags={[]}
       reviews={[
-        { id: "r1", userId: "u1", isMine: true, body: "Original", rating: 4, createdAt: "2026-06-30T00:00:00Z" },
-        { id: "r2", userId: "u2", isMine: false, body: "Not mine", rating: 5, createdAt: "2026-06-30T00:00:00Z" },
+        {
+          id: "r1", userId: "u1", isMine: true, authorUsername: null, authorName: null,
+          body: "Original", rating: 4, upvotes: 0, mineUpvoted: false, createdAt: "2026-06-30T00:00:00Z", photos: [],
+        },
+        {
+          id: "r2", userId: "u2", isMine: false, authorUsername: "kai", authorName: null,
+          body: "Not mine", rating: 5, upvotes: 0, mineUpvoted: false, createdAt: "2026-06-30T00:00:00Z", photos: [],
+        },
       ]}
       onSaveReview={onSaveReview}
       onDeleteReview={onDeleteReview}
@@ -71,6 +150,8 @@ test("CommunityBlock lets a user edit and delete only their own review", async (
   expect(screen.getAllByText("Edit")).toHaveLength(1);
   expect(screen.getAllByText("Delete")).toHaveLength(1);
   expect(screen.getAllByText("Jun 30, 2026")).toHaveLength(2);
+  expect(screen.getByText("★ 4.0")).toBeTruthy();
+  expect(screen.getByText("★ 5.0")).toBeTruthy();
 
   await fireEvent.press(screen.getByText("Edit"));
   await fireEvent.changeText(screen.getByDisplayValue("Original"), "Updated");
@@ -82,6 +163,29 @@ test("CommunityBlock lets a user edit and delete only their own review", async (
 
   await fireEvent.press(screen.getByText("Delete"));
   expect(onDeleteReview).toHaveBeenCalledWith("r1");
+});
+
+test("CommunityBlock shows optional sentiment and place tags without requiring them", async () => {
+  await render(
+    <CommunityBlock
+      tags={["Great food", "Late night"]}
+      reviews={[
+        {
+          id: "r1", userId: "u1", isMine: false, authorUsername: "jenny", authorName: null,
+          body: "Would return.", rating: 5, state: "loved", upvotes: 0, mineUpvoted: false, createdAt: "2026-06-30T00:00:00Z", photos: [],
+        },
+        {
+          id: "r2", userId: "u2", isMine: false, authorUsername: null, authorName: null,
+          body: "No sentiment yet.", rating: undefined, upvotes: 0, mineUpvoted: false, createdAt: "2026-06-30T00:00:00Z", photos: [],
+        },
+      ]}
+    />,
+  );
+
+  expect(screen.getByText("Loved")).toBeTruthy();
+  expect(screen.getByText("Great food")).toBeTruthy();
+  expect(screen.getByText("Late night")).toBeTruthy();
+  expect(screen.getByText("No sentiment yet.")).toBeTruthy();
 });
 
 test("CommunityBlock lets a user add a simple community tag", async () => {

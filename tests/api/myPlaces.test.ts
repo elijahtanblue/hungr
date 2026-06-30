@@ -20,8 +20,8 @@ test("getMyPlaces returns grouped saved places with live names", async () => {
   const order = jest.fn().mockResolvedValue({
     data: [
       { place_id: "p1", state: "go", updated_at: "2026-06-30T02:00:00Z", rating: null, note: null, avoid_reason: null },
-      { place_id: "p2", state: "been", updated_at: "2026-06-30T01:00:00Z", rating: 5, note: "Great", avoid_reason: null },
-      { place_id: "p3", state: "avoid", updated_at: "2026-06-29T01:00:00Z", rating: null, note: null, avoid_reason: "Too expensive" },
+      { place_id: "p2", state: "liked", updated_at: "2026-06-30T01:00:00Z", rating: 5, note: "Great", avoid_reason: null },
+      { place_id: "p3", state: "disliked", updated_at: "2026-06-29T01:00:00Z", rating: null, note: null, avoid_reason: "Too expensive" },
     ],
     error: null,
   });
@@ -32,8 +32,9 @@ test("getMyPlaces returns grouped saved places with live names", async () => {
 
   await expect(getMyPlaces()).resolves.toEqual({
     go: [{ placeId: "p1", name: "Mr Wong", state: "go", updatedAt: "2026-06-30T02:00:00Z", rating: null, note: null, avoidReason: null }],
-    been: [{ placeId: "p2", name: "Gumshara", state: "been", updatedAt: "2026-06-30T01:00:00Z", rating: 5, note: "Great", avoidReason: null }],
-    avoid: [{ placeId: "p3", name: "Pricey Place", state: "avoid", updatedAt: "2026-06-29T01:00:00Z", rating: null, note: null, avoidReason: "Too expensive" }],
+    liked: [{ placeId: "p2", name: "Gumshara", state: "liked", updatedAt: "2026-06-30T01:00:00Z", rating: 5, note: "Great", avoidReason: null }],
+    loved: [],
+    disliked: [{ placeId: "p3", name: "Pricey Place", state: "disliked", updatedAt: "2026-06-29T01:00:00Z", rating: null, note: null, avoidReason: "Too expensive" }],
   });
   expect(eq).toHaveBeenCalledWith("user_id", "u1");
   expect(order).toHaveBeenCalledWith("updated_at", { ascending: false });
@@ -42,6 +43,6 @@ test("getMyPlaces returns grouped saved places with live names", async () => {
 test("getMyPlaces returns empty groups when signed out", async () => {
   (supabase.auth.getUser as jest.Mock).mockResolvedValue({ data: { user: null }, error: null });
 
-  await expect(getMyPlaces()).resolves.toEqual({ go: [], been: [], avoid: [] });
+  await expect(getMyPlaces()).resolves.toEqual({ go: [], liked: [], loved: [], disliked: [] });
   expect(supabase.from).not.toHaveBeenCalled();
 });

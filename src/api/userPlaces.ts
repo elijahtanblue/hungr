@@ -19,6 +19,17 @@ export async function setUserPlaceState(placeId: string, state: PlaceState): Pro
   return true;
 }
 
+// Removes the user's state for a place (unsave / un-been / un-avoid). Returns false when signed out.
+export async function clearUserPlaceState(placeId: string): Promise<boolean> {
+  const { data, error: userError } = await supabase.auth.getUser();
+  if (userError) throw userError;
+  if (!data.user) return false;
+
+  const res = await supabase.from("user_places").delete().eq("user_id", data.user.id).eq("place_id", placeId);
+  if (res.error) throw res.error;
+  return true;
+}
+
 export type PlaceFeedback = { rating?: number | null; note?: string | null; avoidReason?: string | null };
 
 // Persists the quick Been/Avoid feedback onto the user's existing user_places row (own-row RLS).

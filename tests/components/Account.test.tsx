@@ -1,41 +1,57 @@
 import { render, screen, fireEvent } from "@testing-library/react-native";
 import Account from "../../app/(tabs)/account";
-import { supabase } from "../../src/lib/supabase";
-import { router } from "expo-router";
-import { StyleSheet } from "react-native";
 
-jest.mock("expo-router", () => ({ router: { replace: jest.fn(), push: jest.fn() } }));
+jest.mock("expo-router", () => {
+  const React = require("react");
+  return { router: { push: jest.fn() }, useFocusEffect: (cb: any) => React.useEffect(cb, []) };
+});
 jest.mock("react-native-safe-area-context", () => ({
-  useSafeAreaInsets: () => ({ top: 47, bottom: 0, left: 0, right: 0 }),
-}));
-jest.mock("../../src/api/social", () => ({
-  getMyProfile: jest.fn().mockResolvedValue(null),
-  setUsername: jest.fn().mockResolvedValue({ ok: true }),
-  setShareActivity: jest.fn().mockResolvedValue(true),
+  useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }),
 }));
 jest.mock("../../src/lib/supabase", () => ({
-  supabase: {
-    auth: {
-      getUser: jest.fn().mockResolvedValue({ data: { user: { email: "a@b.com" } } }),
-      signOut: jest.fn().mockResolvedValue({ error: null }),
-    },
-  },
+  supabase: { auth: { getUser: jest.fn().mockResolvedValue({ data: { user: { email: "a@b.com" } } }) } },
 }));
+jest.mock("../../src/api/social", () => ({
+  getMyProfile: jest.fn().mockResolvedValue({ username: "elijahtanblue", sharesActivity: true }),
+  getSocialCounts: jest.fn().mockResolvedValue({ followers: 3, following: 5, friends: 2 }),
+}));
+jest.mock("../../src/api/community", () => ({ getMyReviews: jest.fn().mockResolvedValue([]) }));
+jest.mock("../../src/api/myPlaces", () => ({
+  getMyPlaces: jest.fn().mockResolvedValue({
+    go: [{ placeId: "p1", name: "Gumshara Ramen", state: "go", updatedAt: "2026-06-30T00:00:00Z", rating: null, note: null, avoidReason: null }],
+    liked: [], loved: [], disliked: [],
+  }),
+}));
+jest.mock("../../src/api/notifications", () => ({ getNotifications: jest.fn().mockResolvedValue([]) }));
 
-test("tapping Sign out calls supabase signOut", async () => {
+test("profile shows the handle and counts and opens settings", async () => {
+  const { router } = require("expo-router");
   await render(<Account />);
-  await fireEvent.press(screen.getByText("Sign out"));
-  expect(supabase.auth.signOut).toHaveBeenCalled();
+
+  expect(await screen.findByText("@elijahtanblue")).toBeTruthy();
+  expect(screen.getByText("Followers")).toBeTruthy();
+
+  await fireEvent.press(screen.getByLabelText("Settings"));
+  expect(router.push).toHaveBeenCalledWith("/settings");
 });
 
-test("Account respects the phone safe area at the top", async () => {
+test("opens the TikTok personal capture flow", async () => {
+  const { router } = require("expo-router");
   await render(<Account />);
-  const screenRoot = screen.getByTestId("account-screen");
-  expect(StyleSheet.flatten(screenRoot.props.style).paddingTop).toBeGreaterThan(47);
+
+  await fireEvent.press(await screen.findByText("Save from TikTok"));
+
+  expect(router.push).toHaveBeenCalledWith("/tiktok-import");
 });
 
-test("Account links to My places", async () => {
+test("toggles from reviews to saved places", async () => {
   await render(<Account />);
-  await fireEvent.press(screen.getByText("My places"));
-  expect(router.push).toHaveBeenCalledWith("/my-places");
+
+  // Reviews view is the default.
+  expect(await screen.findByText("Reviews")).toBeTruthy();
+  expect(screen.queryByText("Gumshara Ramen")).toBeNull();
+
+  await fireEvent.press(screen.getByText("Saved"));
+
+  expect(await screen.findByText("Gumshara Ramen")).toBeTruthy();
 });

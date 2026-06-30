@@ -14,10 +14,10 @@ export type MyPlace = {
 
 export type MyPlaces = Record<PlaceState, MyPlace[]>;
 
-const empty = (): MyPlaces => ({ go: [], been: [], avoid: [] });
+const empty = (): MyPlaces => ({ go: [], liked: [], loved: [], disliked: [] });
 
 function isPlaceState(value: unknown): value is PlaceState {
-  return value === "go" || value === "been" || value === "avoid";
+  return value === "go" || value === "liked" || value === "loved" || value === "disliked";
 }
 
 export async function getMyPlaces(): Promise<MyPlaces> {

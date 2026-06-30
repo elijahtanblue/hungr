@@ -254,9 +254,15 @@ type SafePlace = {
   lat: number;
   lng: number;
   rating?: number;
+  priceLevel?: string;
   cuisines: string[];
   attribution: string;
 };
+
+function clampRadius(value: unknown): number {
+  if (typeof value !== "number" || !Number.isFinite(value)) return 1500;
+  return Math.max(2000, Math.min(50000, Math.round(value)));
+}
 
 function addCuisine(cuisines: Set<string>, cuisine: string) {
   cuisines.add(cuisine);
@@ -281,22 +287,32 @@ export function shapePlace(raw: any): SafePlace {
     if (!pattern.test(name)) continue;
     for (const cuisine of matches) addCuisine(cuisines, cuisine);
   }
+  // Bubble tea: trust Google's own category label (e.g. "Bubble tea store"), not the place name,
+  // since plenty of places sell tea without being a bubble tea shop.
+  const displayType = raw.primaryTypeDisplayName?.text;
+  if (typeof displayType === "string" && /bubble tea|boba/i.test(displayType)) {
+    addCuisine(cuisines, "Bubble Tea");
+  }
   return {
     placeId: raw.id,
     name: raw.displayName?.text ?? "",
     lat: raw.location?.latitude,
     lng: raw.location?.longitude,
     rating: raw.rating,
+    priceLevel: raw.priceLevel,
     cuisines: Array.from(cuisines),
     attribution: (raw.attributions && raw.attributions[0]) || "Listing by Google",
   };
 }
 
-export function buildTextSearchBody(lat: number, lng: number, textQuery: string, pageToken?: string) {
+export function buildTextSearchBody(lat: number, lng: number, textQuery: string, pageToken?: string, radiusMeters?: number, openNow?: boolean) {
   return {
     textQuery,
     pageSize: 20,
-    locationBias: { circle: { center: { latitude: lat, longitude: lng }, radius: 1500 } },
+    locationBias: { circle: { center: { latitude: lat, longitude: lng }, radius: clampRadius(radiusMeters) } },
+    // Server-side "open now" filtering: free (a Text Search request param), unlike pulling each
+    // place's full hours into the result set.
+    ...(openNow ? { openNow: true } : {}),
     ...(pageToken ? { pageToken } : {}),
   };
 }
@@ -309,21 +325,22 @@ export default async function handler(req: Request): Promise<Response> {
   // Fetch Google Places live, asking only for fields we are allowed to display.
   const body = await readJsonObject(req);
   if (!body.ok) return body.response;
-  const { lat, lng, query, pageToken } = body.value;
+  const { lat, lng, query, pageToken, radiusMeters, openNow } = body.value;
   if (typeof lat !== "number" || typeof lng !== "number" || !isFinite(lat) || !isFinite(lng)) {
     return new Response("Invalid coordinates", { status: 400 });
   }
   const textQuery = typeof query === "string" && query.trim() ? query.slice(0, 120) : "food";
   const token = typeof pageToken === "string" && pageToken.trim() ? pageToken : undefined;
+  const radius = typeof radiusMeters === "number" ? radiusMeters : undefined;
   const res = await fetch("https://places.googleapis.com/v1/places:searchText", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       "X-Goog-Api-Key": KEY,
       "X-Goog-FieldMask":
-        "places.id,places.displayName,places.location,places.rating,places.primaryType,places.types,places.attributions",
+        "places.id,places.displayName,places.location,places.rating,places.priceLevel,places.primaryType,places.primaryTypeDisplayName,places.types,places.attributions",
     },
-    body: JSON.stringify(buildTextSearchBody(lat, lng, textQuery, token)),
+    body: JSON.stringify(buildTextSearchBody(lat, lng, textQuery, token, radius, openNow === true)),
   });
   // Never forward an upstream error body to the client (it can echo the request and leak detail).
   if (!res.ok) return new Response("Upstream error", { status: 502 });

@@ -11,8 +11,8 @@ jest.mock("../../src/api/userPlaces", () => ({
 
 beforeEach(() => jest.clearAllMocks());
 
-test("saveReviewFeedback writes Been ratings privately and posts non-empty notes as hungr reviews", async () => {
-  await saveReviewFeedback("p1", "been", { rating: 4.5, reason: null, note: "Great noodles." });
+test("saveReviewFeedback writes Liked ratings privately and posts non-empty notes as hungr reviews", async () => {
+  await saveReviewFeedback("p1", "liked", { rating: 4.5, reason: null, note: "Great noodles." });
 
   expect(savePlaceFeedback).toHaveBeenCalledWith("p1", {
     rating: 4.5,
@@ -22,8 +22,8 @@ test("saveReviewFeedback writes Been ratings privately and posts non-empty notes
   expect(saveCommunityReview).toHaveBeenCalledWith("p1", { body: "Great noodles.", rating: 4.5 });
 });
 
-test("saveReviewFeedback can turn Avoid notes into hungr reviews while preserving the private reason chip", async () => {
-  await saveReviewFeedback("p2", "avoid", { rating: 2.5, reason: "Too expensive", note: "Overpriced for the quality." });
+test("saveReviewFeedback can turn Disliked notes into hungr reviews while preserving the private reason chip", async () => {
+  await saveReviewFeedback("p2", "disliked", { rating: 2.5, reason: "Too expensive", note: "Overpriced for the quality." });
 
   expect(savePlaceFeedback).toHaveBeenCalledWith("p2", {
     rating: 2.5,
@@ -34,7 +34,7 @@ test("saveReviewFeedback can turn Avoid notes into hungr reviews while preservin
 });
 
 test("saveReviewFeedback skips public review creation when the short review is blank", async () => {
-  await saveReviewFeedback("p3", "been", { rating: 5, reason: null, note: "   " });
+  await saveReviewFeedback("p3", "liked", { rating: 5, reason: null, note: "   " });
 
   expect(saveCommunityReview).not.toHaveBeenCalled();
 });

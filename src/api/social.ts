@@ -64,6 +64,26 @@ export async function followUser(target: string): Promise<void> {
   if (error) throw error;
 }
 
+// Ensure the signed-in user follows the founder account. Idempotent and fail-soft; called on
+// launch so initial users see the founder's activity from day one.
+export async function ensureFollowingFounder(): Promise<void> {
+  await supabase.rpc("ensure_following_founder");
+}
+
+export type SocialCounts = { followers: number; following: number; friends: number };
+
+// Follower / following / friend counts for the profile header.
+export async function getSocialCounts(): Promise<SocialCounts> {
+  const { data, error } = await supabase.rpc("get_social_counts");
+  const row = Array.isArray(data) ? data[0] : data;
+  if (error || !row) return { followers: 0, following: 0, friends: 0 };
+  return {
+    followers: Number(row.followers ?? 0),
+    following: Number(row.following ?? 0),
+    friends: Number(row.friends ?? 0),
+  };
+}
+
 export async function unfollowUser(target: string): Promise<void> {
   const { error } = await supabase.rpc("unfollow_user", { target });
   if (error) throw error;

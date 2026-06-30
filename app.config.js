@@ -23,6 +23,12 @@ module.exports = ({ config }) => {
           iosGoogleMapsApiKey: process.env.EXPO_PUBLIC_MAPS_SDK_KEY,
         },
       ],
+      [
+        "expo-contacts",
+        {
+          contactsPermission: "hungr uses your contacts to find friends who are already here. We only send scrambled (hashed) versions, never the numbers themselves.",
+        },
+      ],
     ],
   });
 };

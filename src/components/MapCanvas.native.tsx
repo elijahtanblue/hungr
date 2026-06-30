@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import MapView, { PROVIDER_GOOGLE, Marker } from "react-native-maps";
 import { StyleSheet } from "react-native";
 import { PlacePin } from "./PlacePin";
@@ -16,6 +16,8 @@ export function MapCanvas({
   onRegionChange?: (region: Region) => void;
   selectedId?: string;
 }) {
+  const mapRef = useRef<MapView | null>(null);
+  const previousRegion = useRef(region);
   // Custom view markers re-snapshot on every frame unless frozen, which is the main source
   // of map lag. We let them render for a beat (so they rasterise crisply, not blurry) then
   // freeze them. Re-armed whenever the result set or the selected pin changes (so the
@@ -27,8 +29,23 @@ export function MapCanvas({
     return () => clearTimeout(t);
   }, [places, selectedId]);
 
+  useEffect(() => {
+    const prev = previousRegion.current;
+    previousRegion.current = region;
+    const moved =
+      Math.abs(prev.latitude - region.latitude) > 0.000001 ||
+      Math.abs(prev.longitude - region.longitude) > 0.000001 ||
+      Math.abs(prev.latitudeDelta - region.latitudeDelta) > 0.000001 ||
+      Math.abs(prev.longitudeDelta - region.longitudeDelta) > 0.000001;
+    if (!moved) {
+      return;
+    }
+    mapRef.current?.animateToRegion(region, 450);
+  }, [region]);
+
   return (
     <MapView
+      ref={mapRef}
       provider={PROVIDER_GOOGLE}
       style={StyleSheet.absoluteFill}
       initialRegion={region}
@@ -50,7 +67,7 @@ export function MapCanvas({
           onPress={() => onSelect(p)}
           tracksViewChanges={tracks}
         >
-          <PlacePin state={p.state} rating={p.rating} selected={p.placeId === selectedId} />
+          <PlacePin state={p.state} rating={p.rating} selected={p.placeId === selectedId} guideAward={p.guideAward} />
         </Marker>
       ))}
     </MapView>

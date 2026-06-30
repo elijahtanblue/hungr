@@ -1,4 +1,4 @@
-import { importPlacesToWantToGo } from "../../src/api/importPlaces";
+import { resolveImportRows, addPlacesToWantToGo } from "../../src/api/importPlaces";
 import { searchNearby } from "../../src/api/places";
 import { setUserPlaceState } from "../../src/api/userPlaces";
 
@@ -8,43 +8,42 @@ jest.mock("../../src/api/userPlaces", () => ({ setUserPlaceState: jest.fn() }));
 beforeEach(() => jest.clearAllMocks());
 
 const bias = { lat: -33.87, lng: 151.21 };
+const place = (placeId: string, name: string) => ({ placeId, name, lat: 0, lng: 0, cuisines: [] });
 
-test("saves the top match as want-to-go and reports unresolved rows as missed", async () => {
-  (searchNearby as jest.Mock).mockImplementation(async (_lat, _lng, query: string) =>
-    query.startsWith("Mr Wong") ? [{ placeId: "p1", name: "Mr Wong" }] : [],
-  );
-  (setUserPlaceState as jest.Mock).mockResolvedValue(true);
+test("resolveImportRows returns up to three candidates per row", async () => {
+  (searchNearby as jest.Mock).mockResolvedValue([place("p1", "Mr Wong"), place("p2", "Mr Wong 2"), place("p3", "Mr Wong 3"), place("p4", "Mr Wong 4")]);
 
-  const res = await importPlacesToWantToGo(
-    [{ name: "Mr Wong", query: "Mr Wong" }, { name: "Nowhere", query: "Nowhere" }],
-    bias,
-  );
+  const out = await resolveImportRows([{ name: "Mr Wong", query: "Mr Wong" }], bias);
 
-  expect(res).toEqual({ added: ["Mr Wong"], missed: ["Nowhere"] });
-  expect(setUserPlaceState).toHaveBeenCalledWith("p1", "go");
-  expect(setUserPlaceState).toHaveBeenCalledTimes(1);
+  expect(out).toHaveLength(1);
+  expect(out[0].name).toBe("Mr Wong");
+  expect(out[0].candidates.map((c) => c.placeId)).toEqual(["p1", "p2", "p3"]);
 });
 
-test("a failing row does not abort the rest of the import", async () => {
+test("resolveImportRows retries with the name alone when the full query finds nothing", async () => {
   (searchNearby as jest.Mock)
-    .mockRejectedValueOnce(new Error("rate limited"))
-    .mockResolvedValueOnce([{ placeId: "p2", name: "Gumshara" }]);
-  (setUserPlaceState as jest.Mock).mockResolvedValue(true);
+    .mockResolvedValueOnce([]) // full line "Sandoitchi cafe, Surry Hills" -> nothing
+    .mockResolvedValueOnce([place("s1", "Sandoitchi Cafe")]); // name only -> found
 
-  const res = await importPlacesToWantToGo(
-    [{ name: "Boom", query: "Boom" }, { name: "Gumshara", query: "Gumshara" }],
-    bias,
-  );
+  const out = await resolveImportRows([{ name: "Sandoitchi cafe", query: "Sandoitchi cafe, Surry Hills" }], bias);
 
-  expect(res).toEqual({ added: ["Gumshara"], missed: ["Boom"] });
+  expect(out[0].candidates.map((c) => c.placeId)).toEqual(["s1"]);
+  expect(searchNearby).toHaveBeenCalledTimes(2);
 });
 
-test("reports progress for each row", async () => {
-  (searchNearby as jest.Mock).mockResolvedValue([{ placeId: "p", name: "X" }]);
-  (setUserPlaceState as jest.Mock).mockResolvedValue(true);
-  const seen: Array<[number, number]> = [];
+test("resolveImportRows yields an empty candidate list when a row errors", async () => {
+  (searchNearby as jest.Mock).mockRejectedValue(new Error("rate limited"));
+  const out = await resolveImportRows([{ name: "Boom", query: "Boom" }], bias);
+  expect(out[0].candidates).toEqual([]);
+});
 
-  await importPlacesToWantToGo([{ name: "A", query: "A" }, { name: "B", query: "B" }], bias, (d, t) => seen.push([d, t]));
+test("addPlacesToWantToGo saves picks and reports failures", async () => {
+  (setUserPlaceState as jest.Mock)
+    .mockResolvedValueOnce(true)
+    .mockResolvedValueOnce(false);
 
-  expect(seen).toEqual([[1, 2], [2, 2]]);
+  const res = await addPlacesToWantToGo([place("p1", "Mr Wong"), place("p2", "Gumshara")]);
+
+  expect(res).toEqual({ added: ["Mr Wong"], missed: ["Gumshara"] });
+  expect(setUserPlaceState).toHaveBeenCalledWith("p1", "go");
 });

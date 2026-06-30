@@ -1,23 +1,35 @@
 import { useEffect, useState } from "react";
-import { View, Text, ScrollView, Pressable, Linking, StyleSheet, ActivityIndicator } from "react-native";
+import { View, Text, ScrollView, Pressable, StyleSheet, ActivityIndicator } from "react-native";
 import { useLocalSearchParams, router } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
+import * as ImagePicker from "expo-image-picker";
 import { getPlaceDetails, type PlaceDetails } from "../../src/api/placeDetails";
 import { getGrounded, type Grounded } from "../../src/api/grounding";
 import {
   addPlaceTag,
   deleteCommunityReview,
   getCommunity,
+  getCommunityPage,
   saveCommunityReview,
+  upvoteReview,
+  reportReview,
+  reportReviewPhoto,
   type Community,
-  type CommunityReview,
+  type CommunityPageOptions,
   type ReviewDraft,
 } from "../../src/api/community";
+import { getPlaceGuides, guideBadgeLabel, type PlaceGuide } from "../../src/api/guides";
+import { moderateAndAttachReviewPhoto, type LocalReviewPhotoAsset } from "../../src/api/reviewPhotos";
+import { PlacePhotos } from "../../src/components/PlacePhotos";
 import { GoogleReviewsBlock } from "../../src/components/GoogleReviewsBlock";
 import { GroundedBlock } from "../../src/components/GroundedBlock";
 import { CommunityBlock } from "../../src/components/CommunityBlock";
-import { colors, space } from "../../src/theme";
+import { formatRating } from "../../src/lib/formatRating";
+import { colors, radius, space } from "../../src/theme";
+
+const REVIEW_PAGE_SIZE = 20;
+const DEFAULT_REVIEW_FILTERS: CommunityPageOptions = { search: "", sort: "newest", photosOnly: false };
 
 function priceLabel(level?: string): string {
   switch (level) {
@@ -29,25 +41,62 @@ function priceLabel(level?: string): string {
   }
 }
 
-function ratingLabel(value: number): string {
-  return Number.isInteger(value) ? value.toFixed(1) : `${Math.round(value * 10) / 10}`;
-}
-
 export default function PlaceDetail() {
   const insets = useSafeAreaInsets();
   const { placeId } = useLocalSearchParams<{ placeId: string }>();
   const [details, setDetails] = useState<PlaceDetails | null>(null);
   const [grounded, setGrounded] = useState<Grounded | null>(null);
   const [community, setCommunity] = useState<Community | null>(null);
+  const [guide, setGuide] = useState<PlaceGuide | null>(null);
   const [reviewSource, setReviewSource] = useState<"hungr" | "google">("hungr");
+  const [reviewFilters, setReviewFilters] = useState<CommunityPageOptions>(DEFAULT_REVIEW_FILTERS);
+  const [communityHasMore, setCommunityHasMore] = useState(false);
+  const [loadingMoreReviews, setLoadingMoreReviews] = useState(false);
+  const [loadingReviews, setLoadingReviews] = useState(false);
   const [loading, setLoading] = useState(true);
 
   function loadCommunity() {
     if (!placeId) return;
-    getCommunity(placeId).then(setCommunity).catch(() => {});
+    getCommunity(placeId).then((c) => {
+      setCommunity(c);
+      setCommunityHasMore(!!c.hasMore);
+    }).catch(() => {});
   }
 
-  async function handleSaveReview(draft: ReviewDraft): Promise<boolean> {
+  async function loadFilteredCommunity(nextFilters: CommunityPageOptions, append = false) {
+    if (!placeId || loadingReviews || loadingMoreReviews) return;
+    const offset = append ? community?.reviews.length ?? 0 : 0;
+    append ? setLoadingMoreReviews(true) : setLoadingReviews(true);
+    try {
+      const page = await getCommunityPage(placeId, { ...nextFilters, limit: REVIEW_PAGE_SIZE, offset });
+      setCommunity((prev) => {
+        const reviews = append ? [...(prev?.reviews ?? []), ...page.reviews] : page.reviews;
+        const ratings = reviews
+          .map((r) => r.rating)
+          .filter((rating): rating is number => typeof rating === "number" && Number.isFinite(rating));
+        return {
+          reviews,
+          tags: prev?.tags ?? [],
+          ratingAverage: prev?.ratingAverage ?? (ratings.length ? Math.round((ratings.reduce((sum, rating) => sum + rating, 0) / ratings.length) * 10) / 10 : null),
+          ratingCount: prev?.ratingCount ?? ratings.length,
+          hasMore: page.hasMore,
+          nextOffset: page.nextOffset,
+        };
+      });
+      setCommunityHasMore(page.hasMore);
+    } catch {
+      // Keep the current reviews visible if a filter request fails.
+    } finally {
+      append ? setLoadingMoreReviews(false) : setLoadingReviews(false);
+    }
+  }
+
+  function handleReviewFiltersChange(nextFilters: CommunityPageOptions) {
+    setReviewFilters(nextFilters);
+    loadFilteredCommunity(nextFilters);
+  }
+
+  async function handleSaveReview(draft: ReviewDraft): Promise<string | false> {
     if (!placeId) return false;
     const saved = await saveCommunityReview(placeId, draft);
     if (saved) loadCommunity();
@@ -65,6 +114,47 @@ export default function PlaceDetail() {
     const saved = await addPlaceTag(placeId, tag);
     if (saved) loadCommunity();
     return saved;
+  }
+
+  async function handleUpvote(id: string, upvote: boolean): Promise<void> {
+    try { await upvoteReview(id, upvote); loadCommunity(); } catch { /* ignore */ }
+  }
+
+  function handleReport(id: string): Promise<void> {
+    return reportReview(id).catch(() => {});
+  }
+
+  function handleReportPhoto(id: string): Promise<void> {
+    return reportReviewPhoto(id).catch(() => {});
+  }
+
+  async function pickReviewPhotos(): Promise<LocalReviewPhotoAsset[]> {
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permission.granted) return [];
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ["images"],
+      allowsMultipleSelection: true,
+      selectionLimit: 4,
+      quality: 0.82,
+    });
+    if (result.canceled) return [];
+    return result.assets.map((asset) => ({
+      uri: asset.uri,
+      fileName: asset.fileName,
+      mimeType: asset.mimeType,
+      width: asset.width,
+      height: asset.height,
+    }));
+  }
+
+  async function attachReviewPhotos(reviewId: string, photos: LocalReviewPhotoAsset[]): Promise<void> {
+    if (!placeId || photos.length === 0) return;
+    await Promise.all(photos.map((photo) => moderateAndAttachReviewPhoto(placeId, reviewId, photo)));
+    loadCommunity();
+  }
+
+  function openProfile(userId: string) {
+    router.push({ pathname: "/profile/[userId]", params: { userId } });
   }
 
   useEffect(() => {
@@ -85,6 +175,7 @@ export default function PlaceDetail() {
       .catch(() => {})
       .finally(() => { if (active) setLoading(false); });
     getCommunity(placeId).then((c) => { if (active) setCommunity(c); }).catch(() => {});
+    getPlaceGuides([placeId]).then((g) => { if (active) setGuide(g[placeId] ?? null); }).catch(() => {});
     return () => { active = false; };
   }, [placeId]);
 
@@ -96,6 +187,12 @@ export default function PlaceDetail() {
       <ScrollView
         contentContainerStyle={[s.content, { paddingTop: insets.top + space.xxl }]}
         showsVerticalScrollIndicator
+        scrollEventThrottle={200}
+        onScroll={({ nativeEvent }) => {
+          if (reviewSource !== "hungr" || !communityHasMore || loadingMoreReviews) return;
+          const remaining = nativeEvent.contentSize.height - nativeEvent.layoutMeasurement.height - nativeEvent.contentOffset.y;
+          if (remaining < 220) loadFilteredCommunity(reviewFilters, true);
+        }}
       >
         {loading && !details ? (
           <ActivityIndicator color={colors.accentPress} style={{ marginTop: space.xxl }} />
@@ -103,27 +200,68 @@ export default function PlaceDetail() {
           <>
             <Text style={s.name}>{details?.name ?? "Place"}</Text>
             <View style={s.metaRow}>
+              {community?.ratingAverage !== null && community?.ratingAverage !== undefined && community.ratingCount > 0 && (
+                <Text style={s.hungrMeta}>{"★"} hungr {formatRating(community.ratingAverage)} ({community.ratingCount})</Text>
+              )}
               {details?.rating !== undefined && (
-                <Text style={s.meta}>{"★"} {details.rating}{details.userRatingCount ? ` (${details.userRatingCount})` : ""}</Text>
+                <Text style={s.meta}>{"★"} {formatRating(details.rating)}{details.userRatingCount ? ` (${details.userRatingCount})` : ""}</Text>
               )}
               {!!priceLabel(details?.priceLevel) && <Text style={s.meta}>{priceLabel(details?.priceLevel)}</Text>}
             </View>
+            {guide && (
+              <View style={s.guideChip}>
+                <Ionicons name="ribbon" size={14} color={colors.ink} />
+                <Text style={s.guideChipTxt}>{guideBadgeLabel(guide)}{guide.year ? ` (${guide.year})` : ""}</Text>
+              </View>
+            )}
             {details?.address && <Text style={s.address}>{details.address}</Text>}
-            {details?.googleMapsUri && (
-              <Pressable onPress={() => Linking.openURL(details.googleMapsUri!)} accessibilityRole="link">
-                <Text style={s.mapsLink}>View on Google Maps</Text>
+            {details?.lat !== undefined && details?.lng !== undefined && (
+              <Pressable
+                onPress={() => router.push({
+                  pathname: "/(tabs)/map",
+                  params: { focusId: details.placeId, focusLat: String(details.lat), focusLng: String(details.lng), focusName: details.name },
+                })}
+                accessibilityRole="button"
+              >
+                <Text style={s.mapsLink}>Show location</Text>
               </Pressable>
+            )}
+            {(details?.openNow !== undefined || details?.takeout || details?.dineIn || details?.delivery) && (
+              <View style={s.svcRow}>
+                {details?.openNow !== undefined && (
+                  <View style={[s.svcChip, details.openNow ? s.openChip : s.closedChip]}>
+                    <Text style={[s.svcChipTxt, details.openNow ? s.openChipTxt : s.closedChipTxt]}>{details.openNow ? "Open now" : "Closed"}</Text>
+                  </View>
+                )}
+                {details?.dineIn && <View style={[s.svcChip, s.amberChip]}><Text style={s.amberChipTxt}>Dine-in</Text></View>}
+                {details?.takeout && <View style={[s.svcChip, s.amberChip]}><Text style={s.amberChipTxt}>Takeout</Text></View>}
+                {details?.delivery && <View style={[s.svcChip, s.amberChip]}><Text style={s.amberChipTxt}>Delivery</Text></View>}
+              </View>
+            )}
+            {details?.weekdayDescriptions && details.weekdayDescriptions.length > 0 && (
+              <View style={s.hours}>
+                <Text style={s.hoursTitle}>Opening hours</Text>
+                {details.weekdayDescriptions.map((line) => (
+                  <Text key={line} style={s.hoursLine}>{line}</Text>
+                ))}
+              </View>
+            )}
+            {((details?.photos && details.photos.length > 0) || (community?.reviews ?? []).some((r) => r.photos?.length)) && (
+              <PlacePhotos
+                names={details?.photos ?? []}
+                reviewPhotos={(community?.reviews ?? []).flatMap((r) => r.photos ?? [])}
+              />
             )}
             {grounded && <GroundedBlock grounded={grounded} />}
             <View style={s.ratingPills}>
               {community?.ratingAverage !== null && community?.ratingAverage !== undefined && community.ratingCount > 0 && (
                 <View style={[s.ratingPill, s.hungrPill]}>
-                  <Text style={s.hungrPillTxt}>hungr {"★"} {ratingLabel(community.ratingAverage)} ({community.ratingCount})</Text>
+                  <Text style={s.hungrPillTxt}>hungr {"★"} {formatRating(community.ratingAverage)} ({community.ratingCount})</Text>
                 </View>
               )}
               {details?.rating !== undefined && (
                 <View style={s.ratingPill}>
-                  <Text style={s.googlePillTxt}>Google {"★"} {ratingLabel(details.rating)}{details.userRatingCount ? ` (${details.userRatingCount})` : ""}</Text>
+                  <Text style={s.googlePillTxt}>Google {"★"} {formatRating(details.rating)}{details.userRatingCount ? ` (${details.userRatingCount})` : ""}</Text>
                 </View>
               )}
             </View>
@@ -147,9 +285,20 @@ export default function PlaceDetail() {
               <CommunityBlock
                 reviews={community?.reviews ?? []}
                 tags={community?.tags ?? []}
+                filters={reviewFilters}
+                onFiltersChange={handleReviewFiltersChange}
                 onSaveReview={handleSaveReview}
                 onDeleteReview={handleDeleteReview}
                 onAddTag={handleAddTag}
+                onUpvote={handleUpvote}
+                onReport={handleReport}
+                onReportPhoto={handleReportPhoto}
+                onOpenProfile={openProfile}
+                onPickPhotos={pickReviewPhotos}
+                onAttachPhotos={attachReviewPhotos}
+                hasMore={communityHasMore}
+                loadingMore={loadingMoreReviews || loadingReviews}
+                onLoadMore={() => loadFilteredCommunity(reviewFilters, true)}
               />
             ) : (
               details && <GoogleReviewsBlock details={details} />
@@ -165,11 +314,27 @@ const s = StyleSheet.create({
   wrap: { flex: 1, backgroundColor: colors.canvas },
   back: { position: "absolute", top: space.xxl, left: space.md, zIndex: 2, width: 40, height: 40, borderRadius: 99, alignItems: "center", justifyContent: "center", backgroundColor: colors.surface, borderColor: colors.hair, borderWidth: 1 },
   content: { padding: space.lg, paddingTop: space.xxl + space.xl, gap: space.md },
-  name: { fontSize: 26, fontWeight: "800", color: colors.ink, marginLeft: 52 },
-  metaRow: { flexDirection: "row", gap: space.md },
+  // Centered, with side margins clearing the floating back button so it reads as a title.
+  name: { fontSize: 26, fontWeight: "800", color: colors.ink, textAlign: "center", marginHorizontal: 44 },
+  metaRow: { flexDirection: "row", gap: space.md, justifyContent: "center", flexWrap: "wrap" },
   meta: { fontSize: 14, fontWeight: "600", color: colors.muted },
+  hungrMeta: { fontSize: 14, fontWeight: "700", color: colors.accentPress },
   address: { fontSize: 14, color: colors.muted },
+  guideChip: { alignSelf: "flex-start", flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "#FFF8DF", borderColor: colors.accent, borderWidth: 1, borderRadius: 999, paddingHorizontal: space.md, paddingVertical: 6 },
+  guideChipTxt: { fontSize: 13, fontWeight: "800", color: colors.ink },
   mapsLink: { fontSize: 14, fontWeight: "600", color: colors.slate, textDecorationLine: "underline" },
+  svcRow: { flexDirection: "row", flexWrap: "wrap", gap: space.xs },
+  svcChip: { borderRadius: 999, paddingHorizontal: space.md, paddingVertical: 5, borderWidth: 1 },
+  svcChipTxt: { fontSize: 13, fontWeight: "800" },
+  openChip: { backgroundColor: "#E7F0E5", borderColor: colors.been },
+  openChipTxt: { color: colors.been },
+  closedChip: { backgroundColor: colors.surface, borderColor: colors.hair },
+  closedChipTxt: { color: colors.muted },
+  amberChip: { backgroundColor: "#FFF8DF", borderColor: colors.accent },
+  amberChipTxt: { fontSize: 13, fontWeight: "800", color: colors.accentPress },
+  hours: { backgroundColor: colors.surface, borderColor: colors.hair, borderWidth: 1, borderRadius: radius.md, padding: space.md, gap: 3 },
+  hoursTitle: { fontSize: 13, fontWeight: "800", color: colors.muted, textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 2 },
+  hoursLine: { fontSize: 14, color: colors.ink },
   ratingPills: { flexDirection: "row", flexWrap: "wrap", gap: space.sm },
   ratingPill: { borderColor: colors.hair, borderWidth: 1, borderRadius: 999, paddingHorizontal: space.md, paddingVertical: 7, backgroundColor: colors.surface },
   hungrPill: { borderColor: colors.accent, backgroundColor: "#FFF8DF" },

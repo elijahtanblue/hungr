@@ -1,162 +1,204 @@
-import { useEffect, useState } from "react";
-import { View, Text, TextInput, Pressable, Switch, StyleSheet } from "react-native";
-import { router } from "expo-router";
+import { useCallback, useMemo, useState } from "react";
+import { View, Text, Pressable, ScrollView, StyleSheet } from "react-native";
+import { router, useFocusEffect } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { supabase } from "../../src/lib/supabase";
-import { getMyProfile, setUsername, setShareActivity } from "../../src/api/social";
+import { getMyProfile, getSocialCounts, type SocialCounts } from "../../src/api/social";
+import { getMyReviews, type MyReview } from "../../src/api/community";
+import { getMyPlaces, type MyPlaces as MyPlacesGroups } from "../../src/api/myPlaces";
+import { getNotifications } from "../../src/api/notifications";
+import { formatRating } from "../../src/lib/formatRating";
+import type { PlaceState } from "../../src/domain/types";
 import { colors, radius, space } from "../../src/theme";
+
+const STATE_LABELS = { liked: "Liked", loved: "Loved", disliked: "Disliked" };
+const emptyGroups: MyPlacesGroups = { go: [], liked: [], loved: [], disliked: [] };
+const SAVED_TABS: { state: PlaceState; label: string; color: string }[] = [
+  { state: "go", label: "Want to go", color: colors.accentPress },
+  { state: "liked", label: "Liked", color: colors.been },
+  { state: "loved", label: "Loved", color: colors.loved },
+  { state: "disliked", label: "Disliked", color: colors.avoid },
+];
+
+function Stat({ label, value }: { label: string; value: number }) {
+  return (
+    <View style={s.stat}>
+      <Text style={s.statNum}>{value}</Text>
+      <Text style={s.statLabel}>{label}</Text>
+    </View>
+  );
+}
 
 export default function Account() {
   const insets = useSafeAreaInsets();
   const [email, setEmail] = useState<string | null>(null);
-  const [handle, setHandle] = useState("");
-  const [savedHandle, setSavedHandle] = useState<string | null>(null);
-  const [status, setStatus] = useState<{ ok: boolean; msg: string } | null>(null);
-  const [shares, setShares] = useState(true);
+  const [handle, setHandle] = useState<string | null>(null);
+  const [counts, setCounts] = useState<SocialCounts>({ followers: 0, following: 0, friends: 0 });
+  const [reviews, setReviews] = useState<MyReview[]>([]);
+  const [saved, setSaved] = useState<MyPlacesGroups>(emptyGroups);
+  const [unread, setUnread] = useState(0);
+  // Hidden toggle: the profile shows either the user's reviews or their saved places.
+  const [view, setView] = useState<"reviews" | "saved">("reviews");
+  const [savedTab, setSavedTab] = useState<PlaceState>("go");
 
-  useEffect(() => {
-    supabase.auth.getUser().then(({ data }) => setEmail(data.user?.email ?? null));
-    getMyProfile().then((p) => {
-      if (!p) return;
-      if (p.username) { setSavedHandle(p.username); setHandle(p.username); }
-      setShares(p.sharesActivity);
-    });
-  }, []);
+  useFocusEffect(
+    useCallback(() => {
+      supabase.auth.getUser().then(({ data }) => setEmail(data.user?.email ?? null));
+      getMyProfile().then((p) => setHandle(p?.username ?? null)).catch(() => {});
+      getSocialCounts().then(setCounts).catch(() => {});
+      getMyReviews().then(setReviews).catch(() => {});
+      getMyPlaces().then(setSaved).catch(() => {});
+      getNotifications().then((n) => setUnread(n.filter((x) => !x.read).length)).catch(() => {});
+    }, []),
+  );
 
-  function toggleShares(next: boolean) {
-    setShares(next);
-    setShareActivity(next).then((ok) => { if (!ok) setShares(!next); });
-  }
-
-  async function saveHandle() {
-    setStatus(null);
-    const res = await setUsername(handle);
-    if (res.ok) {
-      setSavedHandle(handle.trim().toLowerCase());
-      setStatus({ ok: true, msg: "Handle saved. Friends can find you now." });
-    } else {
-      setStatus({ ok: false, msg: res.error });
-    }
-  }
-
-  async function signOut() {
-    await supabase.auth.signOut();
-    router.replace("/sign-in");
-  }
-
-  const dirty = handle.trim().toLowerCase() !== (savedHandle ?? "");
+  const savedRows = useMemo(() => saved[savedTab], [saved, savedTab]);
 
   return (
-    <View testID="account-screen" style={[s.wrap, { paddingTop: insets.top + space.lg }]}>
-      <Text style={s.h1}>Account</Text>
-      <View style={s.card}>
-        <View style={s.avatar}>
-          <Ionicons name="person-outline" size={24} color={colors.accentPress} />
-        </View>
-        <Text style={s.email}>{email ?? "Signed in"}</Text>
-      </View>
-
-      <Text style={s.label}>Your handle</Text>
-      <Text style={s.help}>This is how friends find you. Lowercase letters, numbers, underscores.</Text>
-      <View style={s.handleRow}>
-        <View style={s.handleInput}>
-          <Text style={s.at}>@</Text>
-          <TextInput
-            style={s.input}
-            placeholder="yourname"
-            placeholderTextColor={colors.muted}
-            autoCapitalize="none"
-            autoCorrect={false}
-            value={handle}
-            onChangeText={(t) => { setHandle(t); setStatus(null); }}
-          />
-        </View>
-        <Pressable
-          style={[s.save, !dirty && s.saveDisabled]}
-          onPress={saveHandle}
-          disabled={!dirty}
-          accessibilityRole="button"
-        >
-          <Text style={[s.saveTxt, !dirty && s.saveDisabledTxt]}>Save</Text>
+    <View testID="account-screen" style={s.wrap}>
+      <View style={[s.topBar, { paddingTop: insets.top + space.sm }]}>
+        <Pressable onPress={() => router.push("/notifications")} style={s.iconBtn} accessibilityRole="button" accessibilityLabel="Notifications">
+          <Ionicons name="notifications-outline" size={22} color={colors.ink} />
+          {unread > 0 && <View style={s.badge}><Text style={s.badgeTxt}>{unread > 9 ? "9+" : unread}</Text></View>}
+        </Pressable>
+        <Pressable onPress={() => router.push("/settings")} style={s.iconBtn} accessibilityRole="button" accessibilityLabel="Settings">
+          <Ionicons name="settings-outline" size={22} color={colors.ink} />
         </Pressable>
       </View>
-      {status && <Text style={status.ok ? s.ok : s.err}>{status.msg}</Text>}
 
-      <View style={s.toggleRow}>
-        <View style={s.toggleText}>
-          <Text style={s.toggleTitle}>Share where you've been</Text>
-          <Text style={s.toggleHelp}>When on, the people who follow you can see places you've marked as been.</Text>
+      <ScrollView contentContainerStyle={s.content}>
+        <View style={s.avatar}>
+          <Ionicons name="person" size={34} color={colors.accentPress} />
         </View>
-        <Switch
-          value={shares}
-          onValueChange={toggleShares}
-          trackColor={{ true: colors.accent, false: colors.hair }}
-          thumbColor={colors.surface}
-        />
-      </View>
+        <Text style={s.handle}>{handle ? `@${handle}` : "Set your handle in settings"}</Text>
+        {email && <Text style={s.email}>{email}</Text>}
 
-      <Pressable style={s.importRow} onPress={() => router.push("/my-places")} accessibilityRole="button">
-        <Ionicons name="bookmark-outline" size={18} color={colors.accentPress} />
-        <View style={s.toggleText}>
-          <Text style={s.toggleTitle}>My places</Text>
-          <Text style={s.toggleHelp}>Review your Want to go, Been, and Avoid spots.</Text>
+        <View style={s.stats}>
+          <Stat label="Followers" value={counts.followers} />
+          <Stat label="Following" value={counts.following} />
+          <Stat label="Friends" value={counts.friends} />
         </View>
-        <Ionicons name="chevron-forward" size={18} color={colors.muted} />
-      </Pressable>
 
-      <Pressable style={s.importRow} onPress={() => router.push("/import")} accessibilityRole="button">
-        <Ionicons name="cloud-upload-outline" size={18} color={colors.accentPress} />
-        <View style={s.toggleText}>
-          <Text style={s.toggleTitle}>Import a list</Text>
-          <Text style={s.toggleHelp}>Bring in your Google Maps saved places, a spreadsheet, or notes.</Text>
+        <Pressable style={s.actionRow} onPress={() => router.push("/tiktok-import")} accessibilityRole="button">
+          <Ionicons name="logo-tiktok" size={20} color={colors.accentPress} />
+          <View style={s.actionText}>
+            <Text style={s.actionTitle}>Save from TikTok</Text>
+            <Text style={s.actionHelp}>Paste a food video and confirm the right place before saving.</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color={colors.muted} />
+        </Pressable>
+
+        <View style={s.viewToggle}>
+          <Pressable
+            style={[s.viewBtn, view === "reviews" && s.viewBtnOn]}
+            onPress={() => setView("reviews")}
+            accessibilityRole="button"
+            accessibilityState={{ selected: view === "reviews" }}
+          >
+            <Ionicons name="star-outline" size={15} color={view === "reviews" ? colors.onAccent : colors.muted} />
+            <Text style={[s.viewTxt, view === "reviews" && s.viewTxtOn]}>Reviews</Text>
+          </Pressable>
+          <Pressable
+            style={[s.viewBtn, view === "saved" && s.viewBtnOn]}
+            onPress={() => setView("saved")}
+            accessibilityRole="button"
+            accessibilityState={{ selected: view === "saved" }}
+          >
+            <Ionicons name="bookmark-outline" size={15} color={view === "saved" ? colors.onAccent : colors.muted} />
+            <Text style={[s.viewTxt, view === "saved" && s.viewTxtOn]}>Saved</Text>
+          </Pressable>
         </View>
-        <Ionicons name="chevron-forward" size={18} color={colors.muted} />
-      </Pressable>
 
-      <Pressable style={s.signOut} onPress={signOut} accessibilityRole="button">
-        <Text style={s.signOutTxt}>Sign out</Text>
-      </Pressable>
-
-      <Pressable style={s.privacy} onPress={() => router.push("/privacy")} accessibilityRole="button">
-        <Ionicons name="lock-closed-outline" size={15} color={colors.muted} />
-        <Text style={s.privacyTxt}>Privacy Policy</Text>
-      </Pressable>
+        {view === "reviews" ? (
+          reviews.length === 0 ? (
+            <Text style={s.empty}>You haven't reviewed anywhere yet. Mark a spot Liked or Loved and leave a quick note.</Text>
+          ) : (
+            reviews.map((r) => (
+              <Pressable
+                key={r.id}
+                style={s.review}
+                onPress={() => router.push({ pathname: "/place/[placeId]", params: { placeId: r.placeId } })}
+                accessibilityRole="button"
+              >
+                <View style={s.reviewHead}>
+                  <Text style={s.reviewPlace} numberOfLines={1}>{r.placeName}</Text>
+                  {r.rating !== null && <Text style={s.reviewRating}>{"★"} {formatRating(r.rating)}</Text>}
+                </View>
+                {r.state && <Text style={s.reviewState}>{STATE_LABELS[r.state]}</Text>}
+                {!!r.body && <Text style={s.reviewBody} numberOfLines={3}>{r.body}</Text>}
+              </Pressable>
+            ))
+          )
+        ) : (
+          <>
+            <View style={s.savedTabs}>
+              {SAVED_TABS.map((t) => {
+                const on = savedTab === t.state;
+                return (
+                  <Pressable key={t.state} onPress={() => setSavedTab(t.state)} style={[s.savedTab, on && { backgroundColor: t.color, borderColor: t.color }]} accessibilityRole="button">
+                    <Text style={[s.savedTabTxt, on && s.savedTabTxtOn]}>{t.label}</Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+            {savedRows.length === 0 ? (
+              <Text style={s.empty}>Nothing here yet.</Text>
+            ) : (
+              savedRows.map((p) => (
+                <Pressable
+                  key={p.placeId}
+                  style={s.review}
+                  onPress={() => router.push({ pathname: "/place/[placeId]", params: { placeId: p.placeId } })}
+                  accessibilityRole="button"
+                >
+                  <View style={s.reviewHead}>
+                    <Text style={s.reviewPlace} numberOfLines={1}>{p.name}</Text>
+                    {p.rating !== null && <Text style={s.reviewRating}>{"★"} {formatRating(p.rating)}</Text>}
+                  </View>
+                  {!!(p.note || p.avoidReason) && <Text style={s.reviewBody} numberOfLines={2}>{p.note || p.avoidReason}</Text>}
+                </Pressable>
+              ))
+            )}
+          </>
+        )}
+      </ScrollView>
     </View>
   );
 }
 
 const s = StyleSheet.create({
-  wrap: { flex: 1, backgroundColor: colors.canvas, padding: space.xl },
-  h1: { fontSize: 26, fontWeight: "800", color: colors.ink, marginBottom: space.xl },
-  card: {
-    flexDirection: "row", alignItems: "center", gap: space.md, backgroundColor: colors.surface,
-    borderColor: colors.hair, borderWidth: 1, borderRadius: radius.lg, padding: space.md, marginBottom: space.xl,
-  },
-  avatar: {
-    width: 44, height: 44, borderRadius: radius.pill, alignItems: "center", justifyContent: "center",
-    backgroundColor: colors.canvas, borderColor: colors.hair, borderWidth: 1,
-  },
-  email: { fontSize: 16, fontWeight: "600", color: colors.ink, flexShrink: 1 },
-  label: { fontSize: 13, fontWeight: "700", color: colors.muted, textTransform: "uppercase", letterSpacing: 0.5 },
-  help: { fontSize: 13, color: colors.muted, marginTop: 2, marginBottom: space.sm },
-  handleRow: { flexDirection: "row", gap: space.sm, alignItems: "center" },
-  handleInput: { flex: 1, flexDirection: "row", alignItems: "center", backgroundColor: colors.surface, borderColor: colors.hair, borderWidth: 1, borderRadius: radius.md, paddingHorizontal: space.md, minHeight: 48 },
-  at: { color: colors.muted, fontSize: 16, fontWeight: "700" },
-  input: { flex: 1, color: colors.ink, paddingVertical: space.md, marginLeft: 2 },
-  save: { backgroundColor: colors.accent, borderRadius: radius.md, paddingHorizontal: space.lg, minHeight: 48, alignItems: "center", justifyContent: "center" },
-  saveDisabled: { backgroundColor: colors.hair },
-  saveTxt: { color: colors.onAccent, fontWeight: "700" },
-  saveDisabledTxt: { color: colors.muted },
-  ok: { color: colors.been, fontSize: 13, marginTop: space.sm, fontWeight: "600" },
-  err: { color: colors.avoid, fontSize: 13, marginTop: space.sm, fontWeight: "600" },
-  importRow: { flexDirection: "row", alignItems: "center", gap: space.md, marginTop: space.lg, paddingTop: space.lg, borderTopColor: colors.hair, borderTopWidth: 1 },
-  toggleRow: { flexDirection: "row", alignItems: "center", gap: space.md, marginTop: space.xl, paddingTop: space.lg, borderTopColor: colors.hair, borderTopWidth: 1 },
-  toggleText: { flex: 1 },
-  toggleTitle: { fontSize: 15, fontWeight: "700", color: colors.ink },
-  toggleHelp: { fontSize: 13, color: colors.muted, marginTop: 2, lineHeight: 18 },
-  signOut: { borderColor: colors.avoid, borderWidth: 1, borderRadius: radius.md, padding: space.md, alignItems: "center", minHeight: 48, justifyContent: "center", marginTop: space.xl },
-  signOutTxt: { color: colors.avoid, fontWeight: "700" },
-  privacy: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: space.xs, marginTop: space.lg, padding: space.sm },
-  privacyTxt: { color: colors.muted, fontSize: 13, fontWeight: "600", textDecorationLine: "underline" },
+  wrap: { flex: 1, backgroundColor: colors.canvas },
+  topBar: { flexDirection: "row", justifyContent: "flex-end", alignItems: "center", gap: space.xs, paddingHorizontal: space.lg, paddingBottom: space.xs },
+  iconBtn: { width: 40, height: 40, alignItems: "center", justifyContent: "center" },
+  badge: { position: "absolute", top: 4, right: 4, minWidth: 16, height: 16, borderRadius: 8, backgroundColor: colors.avoid, alignItems: "center", justifyContent: "center", paddingHorizontal: 3 },
+  badgeTxt: { color: "#fff", fontSize: 10, fontWeight: "800" },
+  content: { padding: space.xl, alignItems: "center", paddingBottom: space.xxl },
+  avatar: { width: 84, height: 84, borderRadius: 42, alignItems: "center", justifyContent: "center", backgroundColor: colors.surface, borderColor: colors.hair, borderWidth: 1 },
+  handle: { fontSize: 22, fontWeight: "800", color: colors.ink, marginTop: space.md },
+  email: { fontSize: 14, color: colors.muted, marginTop: 2 },
+  stats: { flexDirection: "row", gap: space.xl, marginTop: space.lg, marginBottom: space.xl },
+  stat: { alignItems: "center" },
+  statNum: { fontSize: 20, fontWeight: "800", color: colors.ink },
+  statLabel: { fontSize: 12, color: colors.muted, fontWeight: "600", marginTop: 2 },
+  actionRow: { alignSelf: "stretch", flexDirection: "row", alignItems: "center", gap: space.md, backgroundColor: colors.surface, borderColor: colors.hair, borderWidth: 1, borderRadius: radius.md, padding: space.md, marginBottom: space.lg },
+  actionText: { flex: 1 },
+  actionTitle: { fontSize: 15, fontWeight: "800", color: colors.ink },
+  actionHelp: { fontSize: 13, color: colors.muted, marginTop: 2, lineHeight: 18 },
+  viewToggle: { alignSelf: "stretch", flexDirection: "row", gap: space.xs, backgroundColor: colors.canvas, borderRadius: radius.pill, padding: 4, marginBottom: space.md },
+  viewBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: space.xs, paddingVertical: space.sm, borderRadius: radius.pill },
+  viewBtnOn: { backgroundColor: colors.accent },
+  viewTxt: { fontSize: 14, fontWeight: "800", color: colors.muted },
+  viewTxtOn: { color: colors.onAccent },
+  savedTabs: { alignSelf: "stretch", flexDirection: "row", flexWrap: "wrap", gap: space.xs, justifyContent: "center", marginBottom: space.md },
+  savedTab: { paddingHorizontal: space.md, paddingVertical: 7, borderRadius: radius.pill, borderColor: colors.hair, borderWidth: 1, backgroundColor: colors.surface },
+  savedTabTxt: { fontSize: 13, fontWeight: "700", color: colors.muted },
+  savedTabTxtOn: { color: "#fff" },
+  empty: { fontSize: 14, color: colors.muted, textAlign: "center", lineHeight: 21, paddingHorizontal: space.md },
+  review: { alignSelf: "stretch", backgroundColor: colors.surface, borderColor: colors.hair, borderWidth: 1, borderRadius: radius.md, padding: space.md, marginBottom: space.sm, gap: 4 },
+  reviewHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: space.sm },
+  reviewPlace: { flex: 1, fontSize: 15, fontWeight: "700", color: colors.ink },
+  reviewRating: { color: colors.accentPress, fontWeight: "800" },
+  reviewState: { alignSelf: "flex-start", color: colors.ink, backgroundColor: colors.canvas, borderColor: colors.hair, borderWidth: 1, borderRadius: radius.pill, paddingHorizontal: space.sm, paddingVertical: 3, fontSize: 12, fontWeight: "800" },
+  reviewBody: { fontSize: 14, color: colors.ink, lineHeight: 20 },
 });

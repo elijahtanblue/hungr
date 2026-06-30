@@ -3,9 +3,9 @@ import { View, Text, Pressable, TextInput, StyleSheet } from "react-native";
 import { colors, radius, space } from "../theme";
 import { StarRatingInput } from "./StarRatingInput";
 
-type FeedbackState = "been" | "avoid";
+type FeedbackState = "liked" | "loved" | "disliked";
 
-const avoidReasons = ["Not my taste", "Too expensive", "Bad food", "Poor service"];
+const dislikeReasons = ["Not my taste", "Too expensive", "Bad food", "Poor service"];
 
 export type FeedbackResult = { rating: number | null; reason: string | null; note: string };
 
@@ -20,7 +20,7 @@ export function PlaceFeedbackPrompt({
   const [rating, setRating] = useState<number | null>(null);
   const [reason, setReason] = useState<string | null>(null);
   const [note, setNote] = useState("");
-  const isBeen = state === "been";
+  const isPositive = state === "liked" || state === "loved";
 
   function done() {
     onSubmit?.({ rating, reason, note });
@@ -30,10 +30,10 @@ export function PlaceFeedbackPrompt({
   return (
     <View style={s.backdrop}>
       <View style={s.card}>
-        <Text style={s.title}>{isBeen ? "How was the food?" : "Why avoid this spot?"}</Text>
+        <Text style={s.title}>{isPositive ? "How was the food?" : "What went wrong?"}</Text>
         <Text style={s.place} numberOfLines={1}>{placeName}</Text>
         <StarRatingInput value={rating} onChange={setRating} />
-        {isBeen ? (
+        {isPositive ? (
           <>
             <TextInput
               style={s.input}
@@ -48,7 +48,7 @@ export function PlaceFeedbackPrompt({
         ) : (
           <>
             <View style={s.reasonGrid}>
-              {avoidReasons.map((r) => {
+              {dislikeReasons.map((r) => {
                 const selected = reason === r;
                 return (
                   <Pressable

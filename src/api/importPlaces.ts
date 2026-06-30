@@ -1,37 +1,52 @@
 import { searchNearby } from "./places";
 import { setUserPlaceState } from "./userPlaces";
 import type { ImportRow } from "../domain/importList";
+import type { Place } from "../domain/types";
 
-// Resolves pasted rows to real Google places and saves the matches as "want to go".
-//
-// Each row is searched individually (top text-search match wins) and saved sequentially, so we
-// stay within the places-proxy rate limit rather than firing a burst. Resolution is best effort:
-// a row we cannot match, or one that fails to save, lands in `missed` instead of aborting the run.
+export type ResolvedRow = { name: string; candidates: Place[] };
 export type ImportResult = { added: string[]; missed: string[] };
 
-export async function importPlacesToWantToGo(
+// Resolve each pasted row to up to three candidate places, so the user can confirm the match (or
+// pick a different one, or drop the row) before anything is saved. Tries the full line first, then
+// the name alone, so a wrong or missing suburb ("Sandoitchi cafe, Surry Hills" when it is really in
+// Darlinghurst) still surfaces candidates instead of nothing. Best effort: a row that errors or
+// matches nothing comes back with an empty candidate list.
+export async function resolveImportRows(
   rows: ImportRow[],
   bias: { lat: number; lng: number },
   onProgress?: (done: number, total: number) => void,
-): Promise<ImportResult> {
-  const added: string[] = [];
-  const missed: string[] = [];
-
+): Promise<ResolvedRow[]> {
+  const out: ResolvedRow[] = [];
   for (let i = 0; i < rows.length; i++) {
     const row = rows[i];
+    let candidates: Place[] = [];
     try {
-      const results = await searchNearby(bias.lat, bias.lng, row.query);
-      const match = results[0];
-      if (!match) { missed.push(row.name); }
-      else {
-        const saved = await setUserPlaceState(match.placeId, "go");
-        if (saved) added.push(match.name); else missed.push(row.name);
+      let results = await searchNearby(bias.lat, bias.lng, row.query);
+      if (results.length === 0 && row.name && row.name !== row.query) {
+        results = await searchNearby(bias.lat, bias.lng, row.name);
       }
+      candidates = results.slice(0, 3);
     } catch {
-      missed.push(row.name);
+      candidates = [];
     }
+    out.push({ name: row.name, candidates });
     onProgress?.(i + 1, rows.length);
   }
+  return out;
+}
 
+// Save the user's confirmed picks as want-to-go. A save that fails lands in `missed`.
+export async function addPlacesToWantToGo(places: Place[]): Promise<ImportResult> {
+  const added: string[] = [];
+  const missed: string[] = [];
+  for (const place of places) {
+    try {
+      const saved = await setUserPlaceState(place.placeId, "go");
+      if (saved) added.push(place.name);
+      else missed.push(place.name);
+    } catch {
+      missed.push(place.name);
+    }
+  }
   return { added, missed };
 }

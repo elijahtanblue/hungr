@@ -1,6 +1,6 @@
 import {
   followUser, requestFriend, respondFriend, searchUsers, listFriends, listFollowing, friendBeens,
-  getMyProfile, setUsername, setShareActivity, unfollowUser, unfriend,
+  getMyProfile, setUsername, setShareActivity, unfollowUser, unfriend, getSocialCounts,
 } from "../../src/api/social";
 import { supabase } from "../../src/lib/supabase";
 
@@ -35,6 +35,17 @@ test("respondFriend passes the accept flag", async () => {
   (supabase.rpc as jest.Mock).mockResolvedValue({ error: null });
   await respondFriend("u2", true);
   expect(supabase.rpc).toHaveBeenCalledWith("respond_friend", { requester: "u2", accept: true });
+});
+
+test("getSocialCounts reads the counts RPC and coerces to numbers", async () => {
+  (supabase.rpc as jest.Mock).mockResolvedValue({ data: [{ followers: 3, following: 5, friends: 2 }], error: null });
+  await expect(getSocialCounts()).resolves.toEqual({ followers: 3, following: 5, friends: 2 });
+  expect(supabase.rpc).toHaveBeenCalledWith("get_social_counts");
+});
+
+test("getSocialCounts fails soft to zeros", async () => {
+  (supabase.rpc as jest.Mock).mockResolvedValue({ data: null, error: new Error("down") });
+  await expect(getSocialCounts()).resolves.toEqual({ followers: 0, following: 0, friends: 0 });
 });
 
 test("setShareActivity updates the caller's own profile flag", async () => {

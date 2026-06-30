@@ -122,6 +122,16 @@ can take a few minutes. If it complains with a long red "ERESOLVE" message, run 
 npm install --legacy-peer-deps
 ```
 
+Two of the app's building blocks are native modules (used by the "find friends from contacts"
+onboarding step): `expo-contacts` reads the address book and `expo-crypto` scrambles the contacts
+before they are sent. They are already in the shopping list, but if you ever change Expo versions,
+re-align them with:
+```
+npx expo install expo-contacts expo-crypto
+```
+Because they are native, the contacts step only runs in a real build (`npx expo run:ios`), not in
+the lightweight Expo Go app.
+
 **Checkpoint:** run `npm test`. You should see a few test suites pass. That proves the code on
 your machine is healthy before you add any keys.
 
@@ -250,6 +260,8 @@ HUNGR_SUPABASE_URL=http://localhost:54321
 HUNGR_SUPABASE_ANON_KEY=<the anon key again>
 HUNGR_SUPABASE_SERVICE_ROLE=<the service_role key from "npx supabase start">
 GOOGLE_PLACES_KEY=<your "hungr server key">
+GOOGLE_VISION_KEY=<your "hungr server key" with Cloud Vision API enabled>
+GOOGLE_TRANSLATE_KEY=<your "hungr server key" with Cloud Translation API enabled>
 GEMINI_KEY=<your "hungr server key" again, the same one works>
 ```
 This file holds the secrets. It stays on your machine and is never uploaded.
@@ -268,6 +280,43 @@ to avoid warnings.
 | Google iOS maps key | `.env.local` (`EXPO_PUBLIC_MAPS_SDK_KEY`) | no (locked to your iOS app) |
 | Google web maps key | `.env.local` (`EXPO_PUBLIC_WEB_MAPS_SDK_KEY`) | no (locked to your websites) |
 | Google server key (Places + Gemini) | `supabase/.env.local` only | YES |
+| Google Vision key | `supabase/.env.local` as `GOOGLE_VISION_KEY` | YES |
+| Google Translate key | `supabase/.env.local` as `GOOGLE_TRANSLATE_KEY` | YES |
+
+### 5c. Review photos and Google review translation keys
+The review-photo and translation features need backend-only Google API access. Important:
+`GOOGLE_VISION_KEY` and `GOOGLE_TRANSLATE_KEY` are **hungr env var names**, not Google Cloud API
+names. Do not search for `GOOGLE_` in Google Cloud; it will show no results.
+
+In Google Cloud, first go to **APIs & Services > Library** and enable:
+- **Cloud Vision API**
+- **Cloud Translation API**
+
+Then open your existing **hungr server key** in **APIs & Services > Credentials**. Under API
+restrictions, search for and select:
+- `Cloud Vision API`
+- `Cloud Translation API`
+
+You do not need to create separate Google API keys unless you want stricter separation. For now,
+you can reuse the same actual **hungr server key** value for all three backend env vars.
+
+For local Edge Functions, add these to `supabase/.env.local`:
+```
+GOOGLE_PLACES_KEY=<your hungr server key>
+GOOGLE_VISION_KEY=<the same hungr server key>
+GOOGLE_TRANSLATE_KEY=<the same hungr server key>
+```
+
+For the deployed Supabase project, set them with:
+```
+npx supabase secrets set GOOGLE_PLACES_KEY=... GOOGLE_VISION_KEY=... GOOGLE_TRANSLATE_KEY=...
+```
+
+Deploy the two Edge Functions that use those keys:
+```
+npx supabase functions deploy review-photo-moderate
+npx supabase functions deploy translate-review
+```
 
 ---
 
@@ -349,8 +398,12 @@ Supabase's cloud and build a real app. Here is the map of what that involves.
    ```
    npx supabase functions deploy places-proxy
    npx supabase functions deploy place-details
+   npx supabase functions deploy place-photo
+   npx supabase functions deploy place-pins
    npx supabase functions deploy grounding
-   npx supabase secrets set GOOGLE_PLACES_KEY=... GEMINI_KEY=...
+   npx supabase functions deploy review-photo-moderate
+   npx supabase functions deploy translate-review
+   npx supabase secrets set GOOGLE_PLACES_KEY=... GOOGLE_VISION_KEY=... GOOGLE_TRANSLATE_KEY=... GEMINI_KEY=...
    ```
 
 ### 8b. Turn on authentication
@@ -512,6 +565,50 @@ The privacy rule: this should import **only the handle/profile link by default**
 followers, DMs, or inferred interests. If you ever import creator content from TikTok or Instagram,
 treat that as a separate feature with its own consent screen, platform review, and terms review.
 
+### 8i. Ingesting food guides (Michelin stars, hats, Bib Gourmand)
+
+hungr can show a small ribbon badge on the map (and a chip on the place page) for restaurants in a
+published guide, for example a Michelin star or a Good Food hat. There is no official Michelin or
+hats API, so you ingest this list by hand. It lives in the `place_guides` table and stores only a
+Google `place_id` plus the curated fact (which guide, which award, which year). It never stores any
+Google content, so it is safe to keep.
+
+You only need to do this when a new guide is published (roughly once a year per guide).
+
+**Step 1: get the Google place_id for each restaurant.**
+The easiest way: open the restaurant in hungr, tap **See full details**, and look at the screen's
+route, which ends in the `place_id` (it looks like `ChIJ...`). Or use Google's free
+[Place ID Finder](https://developers.google.com/maps/documentation/places/web-service/place-id).
+
+**Step 2: add the rows.** In the Supabase dashboard, open **SQL Editor** and run an insert. One row
+per restaurant per guide:
+
+```sql
+insert into place_guides (place_id, guide, award, year) values
+  ('ChIJxxxxxxxxxxxxxxxxxx', 'Michelin', '1 Star', 2025),
+  ('ChIJyyyyyyyyyyyyyyyyyy', 'Michelin', 'Bib Gourmand', 2025),
+  ('ChIJzzzzzzzzzzzzzzzzzz', 'Good Food', '2 Hats', 2025)
+on conflict (place_id, guide, year) do update
+  set award = excluded.award;
+```
+
+The `on conflict` line means you can re-run the same list safely: it updates an existing entry
+instead of erroring. To remove a restaurant that lost its award, delete its row:
+
+```sql
+delete from place_guides where place_id = 'ChIJxxxxxxxxxxxxxxxxxx' and guide = 'Michelin';
+```
+
+That is it. The badge appears the next time the map loads those places. Only you (through the
+dashboard or the service role) can write this table; normal app users can only read it.
+
+If you would rather not paste SQL, you can also add rows through the Supabase **Table editor**, or
+keep your list as a spreadsheet and use the dashboard's **CSV import** into `place_guides` (columns:
+`place_id, guide, award, year`).
+
+A future automation: if a guide ever publishes a machine-readable, licensed list, this same table
+can be filled by a scheduled job instead of by hand. Until then, hand ingest is the safe path.
+
 ---
 
 ## 9. Your domain: usehungr.app
@@ -543,7 +640,14 @@ Run these from inside the `hungr` folder. Start Docker first for anything backen
 | Stop the local backend | `npx supabase stop` |
 | Google Bridge|    npx supabase functions deploy places-proxy
    npx supabase functions deploy place-details
+   npx supabase functions deploy place-names
    npx supabase functions deploy grounding
+   npx supabase db push
+   npx supabase functions deploy place-details
+   npx supabase functions deploy place-photo
+   npx supabase functions deploy place-pins
+   npx supabase functions deploy review-photo-moderate
+   npx supabase functions deploy translate-review
 |Linking database and push| npx supabase link --project-ref <your project ref>
    npx supabase db push
 

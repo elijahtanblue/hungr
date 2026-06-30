@@ -1,13 +1,17 @@
-import { View, TextInput, Pressable, StyleSheet } from "react-native";
+import { View, TextInput, Pressable, ActivityIndicator, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { colors, radius, space } from "../theme";
 
 export function SearchBar({
-  value, onChange, onPreferences, onSubmit,
-}: { value: string; onChange: (t: string) => void; onPreferences: () => void; onSubmit?: () => void }) {
+  value, onChange, onPreferences, onSubmit, loading = false,
+}: { value: string; onChange: (t: string) => void; onPreferences: () => void; onSubmit?: () => void; loading?: boolean }) {
   return (
     <View style={s.bar}>
-      <Ionicons name="search" size={18} color={colors.muted} />
+      {loading ? (
+        <ActivityIndicator size="small" color={colors.accentPress} style={s.icon} />
+      ) : (
+        <Ionicons name="search" size={18} color={colors.muted} />
+      )}
       <TextInput
         style={s.input}
         placeholder='Food near me, or "reviewed by Jenny"'
@@ -27,4 +31,5 @@ const s = StyleSheet.create({
   bar: { flexDirection: "row", alignItems: "center", gap: space.sm, backgroundColor: colors.surface,
     borderColor: colors.hair, borderWidth: 1, borderRadius: radius.md, paddingHorizontal: space.md, minHeight: 48 },
   input: { flex: 1, color: colors.ink, paddingVertical: space.md },
+  icon: { width: 18, height: 18 },
 });

@@ -59,7 +59,8 @@ export default function SignIn() {
     }
   }
 
-  if (session) return <Redirect href="/map" />;
+  // Route through the index so a brand-new account lands in onboarding, not straight on the map.
+  if (session) return <Redirect href="/" />;
 
   return (
     <View style={s.wrap}>

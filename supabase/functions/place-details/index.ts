@@ -23,7 +23,15 @@ type PlaceDetails = {
   priceLevel?: string;
   address?: string;
   googleMapsUri?: string;
+  lat?: number;
+  lng?: number;
+  photos: string[];
   reviews: Review[];
+  openNow?: boolean;
+  weekdayDescriptions?: string[];
+  takeout?: boolean;
+  dineIn?: boolean;
+  delivery?: boolean;
   attribution: string;
 };
 
@@ -43,7 +51,17 @@ export function shapePlaceDetails(raw: any): PlaceDetails {
     priceLevel: raw.priceLevel,
     address: raw.formattedAddress,
     googleMapsUri: raw.googleMapsUri,
+    lat: raw.location?.latitude,
+    lng: raw.location?.longitude,
+    // Photo resource names only (resolved to live URLs on demand via the place-photo function).
+    // We never store the image bytes, consistent with displaying Google content live.
+    photos: (raw.photos ?? []).map((p: any) => p?.name).filter((n: any) => typeof n === "string").slice(0, 6),
     reviews,
+    openNow: raw.currentOpeningHours?.openNow ?? raw.regularOpeningHours?.openNow,
+    weekdayDescriptions: raw.regularOpeningHours?.weekdayDescriptions,
+    takeout: raw.takeout,
+    dineIn: raw.dineIn,
+    delivery: raw.delivery,
     attribution: "Powered by Google",
   };
 }
@@ -64,7 +82,7 @@ export default async function handler(req: Request): Promise<Response> {
     headers: {
       "X-Goog-Api-Key": KEY,
       "X-Goog-FieldMask":
-        "id,displayName,rating,userRatingCount,priceLevel,formattedAddress,googleMapsUri,reviews,primaryType,types",
+        "id,displayName,rating,userRatingCount,priceLevel,formattedAddress,googleMapsUri,location,photos,reviews,primaryType,types,currentOpeningHours.openNow,regularOpeningHours.weekdayDescriptions,takeout,dineIn,delivery",
     },
   });
   if (!res.ok) return new Response("Upstream error", { status: 502 });

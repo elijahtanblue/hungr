@@ -1,4 +1,4 @@
-import { setUserPlaceState, savePlaceFeedback } from "../../src/api/userPlaces";
+import { setUserPlaceState, savePlaceFeedback, clearUserPlaceState } from "../../src/api/userPlaces";
 import { supabase } from "../../src/lib/supabase";
 
 jest.mock("../../src/lib/supabase", () => ({
@@ -10,6 +10,24 @@ jest.mock("../../src/lib/supabase", () => ({
 
 beforeEach(() => {
   jest.clearAllMocks();
+});
+
+test("clearUserPlaceState deletes the user's row for the place", async () => {
+  (supabase.auth.getUser as jest.Mock).mockResolvedValue({ data: { user: { id: "u1" } }, error: null });
+  const eqPlace = jest.fn().mockResolvedValue({ error: null });
+  const eqUser = jest.fn().mockReturnValue({ eq: eqPlace });
+  const del = jest.fn().mockReturnValue({ eq: eqUser });
+  (supabase.from as jest.Mock).mockReturnValue({ delete: del });
+
+  await expect(clearUserPlaceState("p1")).resolves.toBe(true);
+  expect(eqUser).toHaveBeenCalledWith("user_id", "u1");
+  expect(eqPlace).toHaveBeenCalledWith("place_id", "p1");
+});
+
+test("clearUserPlaceState returns false when signed out", async () => {
+  (supabase.auth.getUser as jest.Mock).mockResolvedValue({ data: { user: null }, error: null });
+  await expect(clearUserPlaceState("p1")).resolves.toBe(false);
+  expect(supabase.from).not.toHaveBeenCalled();
 });
 
 test("setUserPlaceState returns false when there is no signed in user", async () => {
@@ -37,7 +55,7 @@ test("setUserPlaceState rejects when saving the user state fails", async () => {
       upsert: jest.fn().mockResolvedValue({ error: new Error("state denied") }),
     });
 
-  await expect(setUserPlaceState("p1", "been")).rejects.toThrow("state denied");
+  await expect(setUserPlaceState("p1", "liked")).rejects.toThrow("state denied");
 });
 
 test("savePlaceFeedback skips the write when there is nothing to persist", async () => {

@@ -10,8 +10,9 @@ import type { Place, PlaceState } from "../domain/types";
 // key), or EXPO_PUBLIC_MAPS_SDK_KEY as a local fallback.
 const pinBg: Record<PlaceState, string> = {
   go: colors.accent,
-  been: colors.been,
-  avoid: colors.avoid,
+  liked: colors.been,
+  loved: colors.loved,
+  disliked: colors.avoid,
 };
 
 type Region = { latitude: number; longitude: number; latitudeDelta: number; longitudeDelta: number };

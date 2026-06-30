@@ -1,12 +1,39 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { getMyPlaces, type MyPlace, type MyPlaces as MyPlacesGroups } from "../src/api/myPlaces";
+import type { PlaceState } from "../src/domain/types";
+import { formatRating } from "../src/lib/formatRating";
 import { colors, radius, space } from "../src/theme";
 
-const emptyGroups: MyPlacesGroups = { go: [], been: [], avoid: [] };
+const emptyGroups: MyPlacesGroups = { go: [], liked: [], loved: [], disliked: [] };
+
+// Tabs across the top, one place group at a time.
+const TABS: { state: PlaceState; label: string; color: string }[] = [
+  { state: "go", label: "Want to go", color: colors.accentPress },
+  { state: "liked", label: "Liked", color: colors.been },
+  { state: "loved", label: "Loved", color: colors.loved },
+  { state: "disliked", label: "Disliked", color: colors.avoid },
+];
+
+type Sort = "recent" | "rating";
+const SORTS: { key: Sort; label: string }[] = [
+  { key: "recent", label: "Recent" },
+  { key: "rating", label: "Rating" },
+];
+
+function sortPlaces(places: MyPlace[], sort: Sort): MyPlace[] {
+  const copy = [...places];
+  if (sort === "rating") {
+    // Highest of your own ratings first; unrated fall to the bottom.
+    copy.sort((a, b) => (b.rating ?? -1) - (a.rating ?? -1));
+  } else {
+    copy.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+  }
+  return copy;
+}
 
 function PlaceRow({ place }: { place: MyPlace }) {
   return (
@@ -17,27 +44,14 @@ function PlaceRow({ place }: { place: MyPlace }) {
     >
       <View style={s.rowText}>
         <View style={s.nameRow}>
-          <Text style={s.name}>{place.name}</Text>
-          {place.rating !== null && <Text style={s.rating}>{"★"} {place.rating}</Text>}
+          <Text style={s.name} numberOfLines={1}>{place.name}</Text>
+          {place.rating !== null && <Text style={s.rating}>{"★"} {formatRating(place.rating)}</Text>}
         </View>
-        {place.note && <Text style={s.meta}>{place.note}</Text>}
-        {place.avoidReason && <Text style={s.meta}>{place.avoidReason}</Text>}
+        {place.note && <Text style={s.meta} numberOfLines={1}>{place.note}</Text>}
+        {place.avoidReason && <Text style={s.meta} numberOfLines={1}>{place.avoidReason}</Text>}
       </View>
       <Ionicons name="chevron-forward" size={18} color={colors.muted} />
     </Pressable>
-  );
-}
-
-function Section({ title, places }: { title: string; places: MyPlace[] }) {
-  return (
-    <View style={s.section}>
-      <Text style={s.label}>{title}</Text>
-      {places.length === 0 ? (
-        <Text style={s.empty}>Nothing here yet.</Text>
-      ) : (
-        places.map((place) => <PlaceRow key={place.placeId} place={place} />)
-      )}
-    </View>
   );
 }
 
@@ -45,6 +59,8 @@ export default function MyPlaces() {
   const insets = useSafeAreaInsets();
   const [places, setPlaces] = useState<MyPlacesGroups>(emptyGroups);
   const [loading, setLoading] = useState(true);
+  const [tab, setTab] = useState<PlaceState>("go");
+  const [sort, setSort] = useState<Sort>("recent");
 
   useEffect(() => {
     let active = true;
@@ -54,6 +70,8 @@ export default function MyPlaces() {
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
   }, []);
+
+  const rows = useMemo(() => sortPlaces(places[tab], sort), [places, tab, sort]);
 
   return (
     <View style={s.wrap}>
@@ -65,16 +83,34 @@ export default function MyPlaces() {
       >
         <Ionicons name="chevron-back" size={22} color={colors.ink} />
       </Pressable>
-      <ScrollView contentContainerStyle={[s.content, { paddingTop: insets.top + space.xxl }]}>
+      <View style={[s.head, { paddingTop: insets.top + space.xxl }]}>
         <Text style={s.h1}>My places</Text>
+        <View style={s.tabs}>
+          {TABS.map((t) => {
+            const on = tab === t.state;
+            return (
+              <Pressable key={t.state} onPress={() => setTab(t.state)} style={[s.tab, on && { backgroundColor: t.color }]} accessibilityRole="button">
+                <Text style={[s.tabTxt, on && s.tabTxtOn]}>{t.label}</Text>
+              </Pressable>
+            );
+          })}
+        </View>
+        <View style={s.sortRow}>
+          <Text style={s.sortLabel}>Sort</Text>
+          {SORTS.map((opt) => (
+            <Pressable key={opt.key} onPress={() => setSort(opt.key)} style={[s.sortPill, sort === opt.key && s.sortPillOn]} accessibilityRole="button">
+              <Text style={[s.sortTxt, sort === opt.key && s.sortTxtOn]}>{opt.label}</Text>
+            </Pressable>
+          ))}
+        </View>
+      </View>
+      <ScrollView contentContainerStyle={s.content}>
         {loading ? (
           <ActivityIndicator color={colors.accentPress} style={s.loader} />
+        ) : rows.length === 0 ? (
+          <Text style={s.empty}>Nothing here yet.</Text>
         ) : (
-          <>
-            <Section title="Want to go" places={places.go} />
-            <Section title="Been" places={places.been} />
-            <Section title="Avoid" places={places.avoid} />
-          </>
+          rows.map((place) => <PlaceRow key={place.placeId} place={place} />)
         )}
       </ScrollView>
     </View>
@@ -88,12 +124,21 @@ const s = StyleSheet.create({
     alignItems: "center", justifyContent: "center", backgroundColor: colors.surface,
     borderColor: colors.hair, borderWidth: 1,
   },
-  content: { padding: space.lg, gap: space.lg, paddingBottom: space.xxl },
-  h1: { fontSize: 26, fontWeight: "800", color: colors.ink, marginLeft: 52 },
+  head: { paddingHorizontal: space.lg, gap: space.md, paddingBottom: space.md, borderBottomColor: colors.hair, borderBottomWidth: 1 },
+  h1: { fontSize: 26, fontWeight: "800", color: colors.ink, textAlign: "center" },
+  tabs: { flexDirection: "row", flexWrap: "wrap", gap: space.xs, justifyContent: "center" },
+  tab: { paddingHorizontal: space.md, paddingVertical: 7, borderRadius: radius.pill, borderColor: colors.hair, borderWidth: 1, backgroundColor: colors.surface },
+  tabTxt: { fontSize: 13, fontWeight: "700", color: colors.muted },
+  tabTxtOn: { color: "#fff" },
+  sortRow: { flexDirection: "row", alignItems: "center", gap: space.xs, justifyContent: "center" },
+  sortLabel: { fontSize: 12, color: colors.muted, fontWeight: "700", marginRight: space.xs },
+  sortPill: { paddingHorizontal: space.md, paddingVertical: 5, borderRadius: radius.pill, borderColor: colors.hair, borderWidth: 1 },
+  sortPillOn: { backgroundColor: colors.ink, borderColor: colors.ink },
+  sortTxt: { fontSize: 12, fontWeight: "700", color: colors.muted },
+  sortTxtOn: { color: colors.surface },
+  content: { padding: space.lg, gap: space.xs, paddingBottom: space.xxl },
   loader: { marginTop: space.xxl },
-  section: { gap: space.xs },
-  label: { fontSize: 15, fontWeight: "800", color: colors.ink },
-  empty: { fontSize: 14, color: colors.muted, paddingVertical: space.sm },
+  empty: { fontSize: 14, color: colors.muted, paddingVertical: space.lg, textAlign: "center" },
   row: {
     flexDirection: "row", alignItems: "center", gap: space.sm, backgroundColor: colors.surface,
     borderColor: colors.hair, borderWidth: 1, borderRadius: radius.md, padding: space.md,

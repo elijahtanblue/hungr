@@ -5,7 +5,11 @@ import { getPlaceDetails } from "../../src/api/placeDetails";
 
 jest.mock("expo-router", () => ({
   useLocalSearchParams: () => ({ placeId: "p1" }),
-  router: { back: jest.fn() },
+  router: { back: jest.fn(), push: jest.fn() },
+}));
+jest.mock("expo-image-picker", () => ({
+  requestMediaLibraryPermissionsAsync: jest.fn().mockResolvedValue({ granted: false }),
+  launchImageLibraryAsync: jest.fn(),
 }));
 jest.mock("react-native-safe-area-context", () => ({
   useSafeAreaInsets: () => ({ top: 20, bottom: 0, left: 0, right: 0 }),
@@ -16,11 +20,28 @@ jest.mock("../../src/api/placeDetails", () => ({
 jest.mock("../../src/api/grounding", () => ({
   getGrounded: jest.fn().mockResolvedValue(null),
 }));
+jest.mock("../../src/api/placePhotos", () => ({
+  getPhotoUri: jest.fn().mockResolvedValue(null),
+}));
 jest.mock("../../src/api/community", () => ({
   getCommunity: jest.fn(),
-  saveCommunityReview: jest.fn().mockResolvedValue(true),
+  getCommunityPage: jest.fn().mockResolvedValue({ reviews: [], hasMore: false, nextOffset: 0 }),
+  saveCommunityReview: jest.fn().mockResolvedValue("r1"),
   deleteCommunityReview: jest.fn().mockResolvedValue(true),
   addPlaceTag: jest.fn().mockResolvedValue(true),
+  upvoteReview: jest.fn().mockResolvedValue(undefined),
+  reportReview: jest.fn().mockResolvedValue(undefined),
+  reportReviewPhoto: jest.fn().mockResolvedValue(undefined),
+}));
+jest.mock("../../src/api/reviewPhotos", () => ({
+  moderateAndAttachReviewPhoto: jest.fn().mockResolvedValue({ approved: true }),
+}));
+jest.mock("../../src/api/googleReviewTranslation", () => ({
+  translateGoogleReview: jest.fn().mockResolvedValue(null),
+}));
+jest.mock("../../src/api/guides", () => ({
+  getPlaceGuides: jest.fn().mockResolvedValue({}),
+  guideBadgeLabel: (g: any) => `${g.guide} · ${g.award}`,
 }));
 
 test("PlaceDetail shows compact separate hungr and Google ratings with review tabs", async () => {
@@ -38,8 +59,21 @@ test("PlaceDetail shows compact separate hungr and Google ratings with review ta
     ratingCount: 12,
     tags: [],
     reviews: [
-      { id: "r1", userId: "u1", isMine: true, body: "Great fries.", rating: 4.5, createdAt: "2026-06-30T00:00:00Z" },
+      {
+        id: "r1",
+        userId: "u1",
+        isMine: true,
+        authorUsername: null,
+        authorName: null,
+        body: "Great fries.",
+        rating: 4.5,
+        upvotes: 0,
+        mineUpvoted: false,
+        createdAt: "2026-06-30T00:00:00Z",
+        photos: [],
+      },
     ],
+    hasMore: false,
   });
 
   await render(<PlaceDetail />);

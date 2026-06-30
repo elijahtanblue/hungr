@@ -39,6 +39,7 @@ export default function Friends() {
   const [feed, setFeed] = useState<FriendBeen[]>([]);
   const [names, setNames] = useState<Record<string, string>>({});
   const [myHandle, setMyHandle] = useState<string | null>(null);
+  const [feedTab, setFeedTab] = useState<"friends" | "following">("friends");
 
   const load = useCallback(() => {
     listFriends().then(setFriends).catch(() => {});
@@ -94,6 +95,12 @@ export default function Friends() {
 
   const friendIds = new Set(friends.map((u) => u.id));
   const oneWayFollowing = following.filter((u) => !friendIds.has(u.id));
+  const followingIds = new Set(following.map((u) => u.id));
+  // Split the recent feed: "Friends" shows mutual friends' beens; "Following" shows beens from the
+  // people you follow one-way (e.g. the founder), so each tab is a distinct view.
+  const feedItems = feed.filter((b) =>
+    feedTab === "friends" ? friendIds.has(b.friendId) : followingIds.has(b.friendId) && !friendIds.has(b.friendId),
+  );
 
   return (
     <ScrollView style={s.wrap} contentContainerStyle={[s.content, { paddingTop: insets.top + space.lg }]}>
@@ -163,18 +170,34 @@ export default function Friends() {
 
       {feed.length > 0 && (
         <View style={s.section}>
-          <Text style={s.label}>Recent</Text>
-          {feed.map((b) => (
-            <View key={`${b.friendId}-${b.placeId}`} style={s.feedRow}>
-              <View style={s.feedDot}>
-                <Ionicons name="restaurant" size={13} color={colors.accentPress} />
-              </View>
-              <View style={s.feedText}>
-                <Text style={s.feedName} numberOfLines={1}>{names[b.placeId] ?? "A spot worth trying"}</Text>
-                <Text style={s.feedMeta}>{feedLabel(b)} has been · {ago(b.visitedAt)}</Text>
-              </View>
+          <View style={s.feedHead}>
+            <Text style={s.label}>Recent</Text>
+            <View style={s.feedToggle}>
+              <Pressable onPress={() => setFeedTab("friends")} style={[s.feedTab, feedTab === "friends" && s.feedTabOn]} accessibilityRole="button">
+                <Text style={[s.feedTabTxt, feedTab === "friends" && s.feedTabTxtOn]}>Friends</Text>
+              </Pressable>
+              <Pressable onPress={() => setFeedTab("following")} style={[s.feedTab, feedTab === "following" && s.feedTabOn]} accessibilityRole="button">
+                <Text style={[s.feedTabTxt, feedTab === "following" && s.feedTabTxtOn]}>Following</Text>
+              </Pressable>
             </View>
-          ))}
+          </View>
+          {feedItems.length === 0 ? (
+            <Text style={s.feedEmpty}>
+              {feedTab === "friends" ? "No recent activity from friends yet." : "No recent activity from people you follow yet."}
+            </Text>
+          ) : (
+            feedItems.map((b) => (
+              <View key={`${b.friendId}-${b.placeId}`} style={s.feedRow}>
+                <View style={s.feedDot}>
+                  <Ionicons name="restaurant" size={13} color={colors.accentPress} />
+                </View>
+                <View style={s.feedText}>
+                  <Text style={s.feedName} numberOfLines={1}>{names[b.placeId] ?? "A spot worth trying"}</Text>
+                  <Text style={s.feedMeta}>{feedLabel(b)} has been · {ago(b.visitedAt)}</Text>
+                </View>
+              </View>
+            ))
+          )}
         </View>
       )}
 
@@ -247,6 +270,13 @@ const s = StyleSheet.create({
   badge: { width: 56, height: 56, borderRadius: radius.pill, alignItems: "center", justifyContent: "center", backgroundColor: colors.surface, borderColor: colors.hair, borderWidth: 1, marginBottom: space.sm },
   emptyTitle: { fontSize: 18, fontWeight: "700", color: colors.ink },
   emptySub: { fontSize: 15, color: colors.muted, textAlign: "center", lineHeight: 22 },
+  feedHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: space.sm },
+  feedToggle: { flexDirection: "row", gap: space.xs, backgroundColor: colors.surface, borderColor: colors.hair, borderWidth: 1, borderRadius: radius.pill, padding: 2 },
+  feedTab: { paddingHorizontal: space.md, paddingVertical: 5, borderRadius: radius.pill },
+  feedTabOn: { backgroundColor: colors.accent },
+  feedTabTxt: { fontSize: 12, fontWeight: "700", color: colors.muted },
+  feedTabTxtOn: { color: colors.onAccent },
+  feedEmpty: { fontSize: 14, color: colors.muted, paddingVertical: space.sm },
   feedRow: { flexDirection: "row", alignItems: "center", gap: space.sm, paddingVertical: space.sm, borderBottomColor: colors.hair, borderBottomWidth: 1 },
   feedDot: { width: 30, height: 30, borderRadius: radius.pill, alignItems: "center", justifyContent: "center", backgroundColor: colors.surface, borderColor: colors.hair, borderWidth: 1 },
   feedText: { flex: 1 },

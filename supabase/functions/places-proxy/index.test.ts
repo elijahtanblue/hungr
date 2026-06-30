@@ -6,6 +6,7 @@ Deno.test("shapePlace keeps display-safe fields, derives a coarse cuisine, drops
     displayName: { text: "Spicy World" },
     location: { latitude: -33.8, longitude: 151.2 },
     rating: 4.6,
+    priceLevel: "PRICE_LEVEL_MODERATE",
     primaryType: "chinese_restaurant",
     types: ["chinese_restaurant", "restaurant"],
     reviews: [{ text: { text: "secret review body" } }],
@@ -14,6 +15,7 @@ Deno.test("shapePlace keeps display-safe fields, derives a coarse cuisine, drops
   const out = shapePlace(raw);
   if (out.placeId !== "p1") throw new Error("placeId missing");
   if (out.rating !== 4.6) throw new Error("rating missing");
+  if (out.priceLevel !== "PRICE_LEVEL_MODERATE") throw new Error("price level missing");
   if (!out.cuisines.includes("Chinese")) throw new Error("coarse cuisine must be derived from place type");
   if (!out.attribution) throw new Error("attribution must be present");
   if (JSON.stringify(out).includes("secret review body")) {
@@ -144,4 +146,39 @@ Deno.test("buildTextSearchBody requests one Google page and forwards the page to
   if (body.pageSize !== 20) throw new Error("must request 20 results per Google page");
   if (body.pageToken !== "next-page") throw new Error("page token missing");
   if (body.textQuery !== "food") throw new Error("text query missing");
+});
+
+Deno.test("buildTextSearchBody uses the selected radius with a safe clamp", () => {
+  const body = buildTextSearchBody(-33.87, 151.21, "food", undefined, 10000);
+  if (body.locationBias.circle.radius !== 10000) throw new Error("selected radius missing");
+
+  const tooLarge = buildTextSearchBody(-33.87, 151.21, "food", undefined, 999999);
+  if (tooLarge.locationBias.circle.radius !== 50000) throw new Error("radius should clamp to 50km");
+});
+
+Deno.test("buildTextSearchBody only sets openNow when requested", () => {
+  const off = buildTextSearchBody(-33.87, 151.21, "food");
+  if ("openNow" in off) throw new Error("openNow should be omitted by default");
+
+  const on = buildTextSearchBody(-33.87, 151.21, "food", undefined, undefined, true);
+  if (on.openNow !== true) throw new Error("openNow should be set when requested");
+});
+
+Deno.test("shapePlace tags Bubble Tea from Google's category, not the place name", () => {
+  const boba = shapePlace({
+    id: "p1",
+    displayName: { text: "Happy Lemon" },
+    location: { latitude: 0, longitude: 0 },
+    primaryTypeDisplayName: { text: "Bubble tea store" },
+  });
+  if (!boba.cuisines.includes("Bubble Tea")) throw new Error("Google bubble tea category should tag Bubble Tea");
+
+  // A place merely named "... Tea" with no bubble-tea category must NOT be auto-tagged.
+  const plainTea = shapePlace({
+    id: "p2",
+    displayName: { text: "Mariage Frères Tea House" },
+    location: { latitude: 0, longitude: 0 },
+    primaryTypeDisplayName: { text: "Tea house" },
+  });
+  if (plainTea.cuisines.includes("Bubble Tea")) throw new Error("a plain tea house must not be tagged Bubble Tea");
 });

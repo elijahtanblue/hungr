@@ -25,7 +25,7 @@ Deno.test("user_places is isolated for read and write", async () => {
   if (read.data && read.data.length > 0) throw new Error("RLS leak: b read a's user_places");
 
   // b must not WRITE a row owned by a
-  const write = await b.client.from("user_places").upsert({ user_id: a.uid, place_id: "p1", state: "avoid" });
+  const write = await b.client.from("user_places").upsert({ user_id: a.uid, place_id: "p1", state: "disliked" });
   if (!write.error) throw new Error("RLS leak: b wrote a's user_places");
 });
 
@@ -48,6 +48,35 @@ Deno.test("reviews cannot be written as another user", async () => {
   await a.client.from("places").upsert({ place_id: "p2" }, { onConflict: "place_id", ignoreDuplicates: true });
   const forged = await b.client.from("reviews").insert({ user_id: a.uid, place_id: "p2", body: "x", rating: 5 });
   if (!forged.error) throw new Error("RLS leak: b forged a review as a");
+});
+
+Deno.test("tiktok source rows are private and cannot be forged", async () => {
+  const a = await makeUser(`ta_${crypto.randomUUID()}@t.dev`);
+  const b = await makeUser(`tb_${crypto.randomUUID()}@t.dev`);
+  await a.client.from("places").upsert({ place_id: "p3" }, { onConflict: "place_id", ignoreDuplicates: true });
+
+  const forged = await b.client.from("user_place_sources").insert({
+    user_id: a.uid,
+    place_id: "p3",
+    source: "tiktok",
+    source_url: "https://www.tiktok.com/@creator/video/123",
+  });
+  if (!forged.error) throw new Error("RLS leak: b forged a tiktok source as a");
+
+  const saved = await a.client.rpc("save_tiktok_source", {
+    target_place_id: "p3",
+    input_source_url: "https://www.tiktok.com/@creator/video/123",
+    input_source_video_id: "123",
+    input_creator_handle: "@creator",
+    input_caption: "The place to try",
+    input_evidence: "TikTok caption mentions the place.",
+    input_dish_tags: ["noodles"],
+    input_confidence: 0.99,
+  });
+  if (saved.error || saved.data !== true) throw new Error("a should save own tiktok source");
+
+  const leaked = await b.client.from("user_place_sources").select("*").eq("place_id", "p3");
+  if (leaked.data && leaked.data.length > 0) throw new Error("RLS leak: b read a's tiktok source");
 });
 
 Deno.test("places and cuisines are publicly readable", async () => {

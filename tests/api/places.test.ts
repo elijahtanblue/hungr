@@ -30,52 +30,84 @@ test("applyFilters with a selected cuisine keeps only matching places", () => {
   expect(out.map((p) => p.placeId)).toEqual(["a", "c"]);
 });
 
+test("applyFilters applies budget, distance, show-state, and sorting controls", () => {
+  const rich: Place[] = [
+    { placeId: "cheap-far", name: "Cheap Far", lat: 0, lng: 0, cuisines: ["Thai"], rating: 4.9, priceLevel: "PRICE_LEVEL_INEXPENSIVE", distanceMeters: 4000, state: "liked" },
+    { placeId: "mid-near", name: "Mid Near", lat: 0, lng: 0, cuisines: ["Thai"], rating: 4.2, priceLevel: "PRICE_LEVEL_MODERATE", distanceMeters: 1200, state: "liked" },
+    { placeId: "expensive-near", name: "Expensive Near", lat: 0, lng: 0, cuisines: ["Thai"], rating: 4.8, priceLevel: "PRICE_LEVEL_EXPENSIVE", distanceMeters: 800, state: "liked" },
+    { placeId: "saved-near", name: "Saved Near", lat: 0, lng: 0, cuisines: ["Thai"], rating: 5, priceLevel: "PRICE_LEVEL_INEXPENSIVE", distanceMeters: 500, state: "go" },
+  ];
+
+  const out = applyFilters(rich, {
+    selected: [],
+    suppressed: [],
+    budgetMax: 2,
+    withinKm: 2,
+    sortBy: "distance",
+    showState: "liked",
+  });
+
+  expect(out.map((p) => p.placeId)).toEqual(["mid-near"]);
+});
+
+test("applyFilters hides places below the minimum rating", () => {
+  const rich: Place[] = [
+    { placeId: "top", name: "Top", lat: 0, lng: 0, cuisines: ["Thai"], rating: 4.6 },
+    { placeId: "mid", name: "Mid", lat: 0, lng: 0, cuisines: ["Thai"], rating: 4.1 },
+    { placeId: "unrated", name: "Unrated", lat: 0, lng: 0, cuisines: ["Thai"] },
+  ];
+
+  const out = applyFilters(rich, { selected: [], suppressed: [], minRating: 4.5 });
+
+  expect(out.map((p) => p.placeId)).toEqual(["top"]);
+});
+
 test("searchNearby carries the coarse cuisine returned by the proxy", async () => {
   (supabase.functions.invoke as jest.Mock).mockResolvedValue({
-    data: { places: [{ placeId: "x", name: "X", lat: 1, lng: 2, rating: 4.5, cuisines: ["Thai"] }] },
+    data: { places: [{ placeId: "x", name: "X", lat: 1.01, lng: 2.01, rating: 4.5, priceLevel: "PRICE_LEVEL_MODERATE", cuisines: ["Thai"] }] },
     error: null,
   });
   const out = await searchNearby(1, 2, "food");
   expect(out[0].cuisines).toEqual(["Thai"]);
+  expect(out[0].priceLevel).toBe("PRICE_LEVEL_MODERATE");
+  expect(out[0].distanceMeters).toBeGreaterThan(0);
 });
 
-test("searchNearby follows page tokens and dedupes Places results", async () => {
-  (supabase.functions.invoke as jest.Mock)
-    .mockResolvedValueOnce({
-      data: {
-        places: [
-          { placeId: "a", name: "A", lat: 1, lng: 2, cuisines: ["Thai"] },
-          { placeId: "b", name: "B", lat: 3, lng: 4, cuisines: ["Chinese"] },
-        ],
-        nextPageToken: "next-1",
-      },
-      error: null,
-    })
-    .mockResolvedValueOnce({
-      data: {
-        places: [
-          { placeId: "b", name: "B updated", lat: 3, lng: 4, cuisines: ["Chinese", "Asian"] },
-          { placeId: "c", name: "C", lat: 5, lng: 6, cuisines: ["Italian"] },
-        ],
-      },
-      error: null,
-    });
+test("searchNearby forwards a selected search radius to the proxy", async () => {
+  (supabase.functions.invoke as jest.Mock).mockResolvedValue({ data: { places: [] }, error: null });
+
+  await searchNearby(1, 2, "food", { radiusMeters: 10000 });
+
+  expect(supabase.functions.invoke).toHaveBeenCalledWith("places-proxy", {
+    body: { lat: 1, lng: 2, query: "food", radiusMeters: 10000 },
+  });
+});
+
+test("searchNearby fetches a single page for a fast first paint", async () => {
+  (supabase.functions.invoke as jest.Mock).mockResolvedValue({
+    data: {
+      places: [
+        { placeId: "a", name: "A", lat: 1, lng: 2, cuisines: ["Thai"] },
+        { placeId: "b", name: "B", lat: 3, lng: 4, cuisines: ["Chinese"] },
+      ],
+      nextPageToken: "next-1",
+    },
+    error: null,
+  });
 
   const out = await searchNearby(1, 2, "food");
 
-  expect(supabase.functions.invoke).toHaveBeenNthCalledWith(1, "places-proxy", {
+  // Only one round trip, and we do not follow the page token (extra pages were the slow path).
+  expect(supabase.functions.invoke).toHaveBeenCalledTimes(1);
+  expect(supabase.functions.invoke).toHaveBeenCalledWith("places-proxy", {
     body: { lat: 1, lng: 2, query: "food" },
   });
-  expect(supabase.functions.invoke).toHaveBeenNthCalledWith(2, "places-proxy", {
-    body: { lat: 1, lng: 2, query: "food", pageToken: "next-1" },
-  });
-  expect(out.map((p) => p.placeId)).toEqual(["a", "b", "c"]);
-  expect(out.find((p) => p.placeId === "b")!.name).toBe("B updated");
+  expect(out.map((p) => p.placeId)).toEqual(["a", "b"]);
 });
 
 test("mergePlaces keeps existing pins and preserves first party state", () => {
   const out = mergePlaces(
-    [{ placeId: "a", name: "Old", lat: 1, lng: 2, cuisines: ["Thai"], state: "been" }],
+    [{ placeId: "a", name: "Old", lat: 1, lng: 2, cuisines: ["Thai"], state: "liked" }],
     [
       { placeId: "a", name: "Fresh", lat: 1, lng: 2, cuisines: ["Thai", "Asian"] },
       { placeId: "b", name: "New", lat: 3, lng: 4, cuisines: ["Italian"] },
@@ -83,7 +115,7 @@ test("mergePlaces keeps existing pins and preserves first party state", () => {
   );
 
   expect(out.map((p) => p.placeId)).toEqual(["a", "b"]);
-  expect(out[0]).toEqual(expect.objectContaining({ name: "Fresh", state: "been" }));
+  expect(out[0]).toEqual(expect.objectContaining({ name: "Fresh", state: "liked" }));
 });
 
 test("searchNearby drops malformed places that cannot render on the map", async () => {
@@ -139,7 +171,7 @@ test("withUserPlaceStates restores saved states after a fresh Google search", as
   (supabase.from as jest.Mock).mockReturnValue({
     select: jest.fn().mockReturnValue({
       in: jest.fn().mockResolvedValue({
-        data: [{ place_id: "a", state: "been" }],
+        data: [{ place_id: "a", state: "liked" }],
         error: null,
       }),
     }),
@@ -147,7 +179,7 @@ test("withUserPlaceStates restores saved states after a fresh Google search", as
 
   const out = await withUserPlaceStates(places);
 
-  expect(out.find((p) => p.placeId === "a")!.state).toBe("been");
+  expect(out.find((p) => p.placeId === "a")!.state).toBe("liked");
   expect(out.find((p) => p.placeId === "b")!.state).toBeUndefined();
 });
 

@@ -1,6 +1,47 @@
-import { View, Text, StyleSheet } from "react-native";
+import { useState } from "react";
+import { View, Text, StyleSheet, Pressable } from "react-native";
 import { colors, radius, space } from "../theme";
 import type { PlaceDetails } from "../api/placeDetails";
+import { formatRating } from "../lib/formatRating";
+import { translateGoogleReview } from "../api/googleReviewTranslation";
+
+function GoogleReviewCard({ review, index }: { review: PlaceDetails["reviews"][number]; index: number }) {
+  const [translated, setTranslated] = useState<string | null>(null);
+  const [showTranslated, setShowTranslated] = useState(false);
+  const [loading, setLoading] = useState(false);
+
+  async function toggleTranslation() {
+    if (showTranslated) {
+      setShowTranslated(false);
+      return;
+    }
+    if (translated) {
+      setShowTranslated(true);
+      return;
+    }
+    setLoading(true);
+    const next = await translateGoogleReview(review.text);
+    setLoading(false);
+    if (next) {
+      setTranslated(next);
+      setShowTranslated(true);
+    }
+  }
+
+  return (
+    <View key={index} testID="google-review-card" style={s.review}>
+      <View style={s.row}>
+        <Text style={s.author}>{review.author || "Google reviewer"}</Text>
+        {review.rating !== undefined && <Text style={s.rating}>{"★"} {formatRating(review.rating)}</Text>}
+      </View>
+      <Text style={s.time}>{review.relativeTime}</Text>
+      <Text style={s.text}>{showTranslated && translated ? translated : review.text}</Text>
+      <Pressable onPress={toggleTranslation} accessibilityRole="button" style={s.translateBtn}>
+        <Text style={s.translateTxt}>{showTranslated ? "Original" : loading ? "Translating..." : "Translate"}</Text>
+      </Pressable>
+    </View>
+  );
+}
 
 // Google content block. Slate world, always carries attribution, kept visually separate from
 // the golden community block (this mirrors the legal boundary in docs/DESIGN.md). Reviews are
@@ -13,14 +54,7 @@ export function GoogleReviewsBlock({ details }: { details: PlaceDetails }) {
         <Text style={s.empty}>No Google reviews to show.</Text>
       ) : (
         details.reviews.map((r, i) => (
-          <View key={i} testID="google-review-card" style={s.review}>
-            <View style={s.row}>
-              <Text style={s.author}>{r.author || "Google reviewer"}</Text>
-              {r.rating !== undefined && <Text style={s.rating}>{"★"} {r.rating}</Text>}
-            </View>
-            <Text style={s.time}>{r.relativeTime}</Text>
-            <Text style={s.text}>{r.text}</Text>
-          </View>
+          <GoogleReviewCard key={i} review={r} index={i} />
         ))
       )}
       <Text style={s.attribution}>{details.attribution}</Text>
@@ -37,6 +71,8 @@ const s = StyleSheet.create({
   rating: { fontSize: 13, fontWeight: "600", color: colors.slate },
   time: { fontSize: 12, color: colors.muted },
   text: { fontSize: 14, color: colors.ink, lineHeight: 20, marginTop: 2 },
+  translateBtn: { alignSelf: "flex-start", paddingTop: space.xs },
+  translateTxt: { fontSize: 13, color: colors.slate, fontWeight: "800" },
   empty: { fontSize: 14, color: colors.muted },
   attribution: { fontSize: 12, color: colors.slate, fontWeight: "600", marginTop: 2 },
 });

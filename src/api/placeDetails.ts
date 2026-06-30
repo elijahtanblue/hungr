@@ -18,7 +18,15 @@ export type PlaceDetails = {
   priceLevel?: string;
   address?: string;
   googleMapsUri?: string;
+  lat?: number;
+  lng?: number;
+  photos?: string[];
   reviews: LiveReview[];
+  openNow?: boolean;
+  weekdayDescriptions?: string[];
+  takeout?: boolean;
+  dineIn?: boolean;
+  delivery?: boolean;
   attribution: string;
 };
 
