@@ -1,5 +1,7 @@
 import { useEffect } from "react";
 import { Stack } from "expo-router";
+import { StatusBar } from "expo-status-bar";
+import { SafeAreaProvider } from "react-native-safe-area-context";
 import * as SplashScreen from "expo-splash-screen";
 import { useAppFonts } from "../src/hooks/useAppFonts";
 import { colors } from "../src/theme";
@@ -17,7 +19,12 @@ export default function RootLayout() {
 
   if (!fontsLoaded) return null;
 
+  // SafeAreaProvider powers useSafeAreaInsets app-wide (it was never mounted, so screens
+  // had no way to keep content out from under the notch / Dynamic Island).
   return (
-    <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.canvas } }} />
+    <SafeAreaProvider>
+      <StatusBar style="dark" />
+      <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.canvas } }} />
+    </SafeAreaProvider>
   );
 }

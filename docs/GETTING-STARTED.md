@@ -54,6 +54,10 @@ sudo xcodebuild -license accept
 ```
 (It will ask for your Mac password. Typing shows nothing on screen, that is normal.)
 
+Then open **Xcode > Settings > Platforms** and make sure an **iOS Simulator** runtime is
+installed. If none is listed, download the iOS platform there. Without this, `npx expo run:ios`
+will build the app but fail with "No iOS devices available in Simulator.app".
+
 ### 1b. Homebrew (a tool that installs other tools)
 Paste this and follow the prompts:
 ```
@@ -179,21 +183,43 @@ In the top search bar, search and **Enable** each of these (one at a time):
 - **Maps JavaScript API** (the map on the web, for later)
 - **Generative Language API** (this is Gemini, the AI "known for" feature)
 
-### 4d. Create the two keys
+Enabling an API only makes that service available inside your Google Cloud project. It does not
+mean every key can use it. The key's **API restrictions** decide which of the enabled APIs that
+specific key is allowed to call.
+
+Do not add extra APIs "just in case." If a key leaks, every API listed on that key is part of the
+billing blast radius. Start narrow, then add another API later when the app actually calls it.
+
+### 4d. Create the three keys
 Go to **APIs & Services**, then **Credentials**, then **Create credentials**, then **API key**.
-Do this twice, and rename each one (pencil icon) so you do not mix them up:
+Do this three times, and rename each one (pencil icon) so you do not mix them up:
 
-1. **hungr maps client key** (this one is safe to ship inside the app)
+1. **hungr iOS maps key** (this one is safe to ship inside the iPhone app)
    - Under **Application restrictions**, choose iOS apps and add the bundle id `app.usehungr`.
-   - Under **API restrictions**, restrict it to **Maps SDK for iOS** (and Maps JavaScript API if
-     you will do the web later).
+   - Under **API restrictions**, restrict it to **Maps SDK for iOS** only.
 
-2. **hungr server key** (this one is SECRET, it never goes in the app)
+2. **hungr web maps key** (this one is safe to ship inside the web app)
+   - Under **Application restrictions**, choose Websites.
+   - Add your local development URLs, for example `http://localhost:8081/*` and
+     `http://127.0.0.1:8081/*`.
+   - Add your production website URLs too, for example `https://usehungr.app/*` and
+     `https://www.usehungr.app/*`. It is OK to have both local and production websites listed on
+     this one web key.
+   - Under **API restrictions**, restrict it to **Maps JavaScript API** only.
+   - Do not tick **Authenticate API calls through a service account**.
+
+3. **hungr server key** (this one is SECRET, it never goes in the app)
    - Under **API restrictions**, restrict it to **Places API (New)** and **Generative Language
      API**.
    - Leave application restrictions as needed for a server (or none for local testing).
 
-Copy both key strings somewhere safe for the next step.
+Copy all three key strings somewhere safe for the next step.
+
+Plain English version:
+- **Enable API** = the project is allowed to use that Google service.
+- **API restriction** = this particular key may call only the APIs you list.
+- **Application restriction** = this particular key may be used only from the app, website, or
+  server source you list.
 
 ---
 
@@ -207,30 +233,40 @@ This file already exists with placeholder values. Open it (in your code editor) 
 ```
 EXPO_PUBLIC_SUPABASE_URL=http://localhost:54321
 EXPO_PUBLIC_SUPABASE_ANON_KEY=<paste the anon key from "npx supabase start">
-EXPO_PUBLIC_MAPS_SDK_KEY=<paste your "hungr maps client key">
+EXPO_PUBLIC_MAPS_SDK_KEY=<paste your "hungr iOS maps key">
+EXPO_PUBLIC_WEB_MAPS_SDK_KEY=<paste your "hungr web maps key">
 ```
 The `EXPO_PUBLIC_` prefix means "this is safe to include in the app." Never put a secret key in a
 line that starts with `EXPO_PUBLIC_`.
 
+The iOS build uses `EXPO_PUBLIC_MAPS_SDK_KEY`. The web build uses
+`EXPO_PUBLIC_WEB_MAPS_SDK_KEY`, and falls back to `EXPO_PUBLIC_MAPS_SDK_KEY` only if the web key
+is missing.
+
 ### 5b. The backend's secret keys: `supabase/.env.local`
 Create a new file at `supabase/.env.local` (inside the `supabase` folder) with:
 ```
-SUPABASE_URL=http://localhost:54321
-SUPABASE_ANON_KEY=<the anon key again>
-SUPABASE_SERVICE_ROLE=<the service_role key from "npx supabase start">
+HUNGR_SUPABASE_URL=http://localhost:54321
+HUNGR_SUPABASE_ANON_KEY=<the anon key again>
+HUNGR_SUPABASE_SERVICE_ROLE=<the service_role key from "npx supabase start">
 GOOGLE_PLACES_KEY=<your "hungr server key">
 GEMINI_KEY=<your "hungr server key" again, the same one works>
 ```
 This file holds the secrets. It stays on your machine and is never uploaded.
 
+The `HUNGR_` prefix is deliberate. Supabase reserves env var names that start with
+`SUPABASE_` when you run Edge Functions locally, so custom local values use `HUNGR_` names
+to avoid warnings.
+
 **Which key goes where, at a glance:**
 
 | Key | Where it goes | Secret? |
 |-----|---------------|---------|
-| Supabase URL | both files | no |
-| Supabase anon key | both files | no (safe to ship) |
-| Supabase service_role key | `supabase/.env.local` only | YES |
-| Google maps client key | `.env.local` (`EXPO_PUBLIC_MAPS_SDK_KEY`) | no (locked to your app) |
+| Supabase URL | root `.env.local` as `EXPO_PUBLIC_SUPABASE_URL`; `supabase/.env.local` as `HUNGR_SUPABASE_URL` | no |
+| Supabase anon key | root `.env.local` as `EXPO_PUBLIC_SUPABASE_ANON_KEY`; `supabase/.env.local` as `HUNGR_SUPABASE_ANON_KEY` | no (safe to ship) |
+| Supabase service_role key | `supabase/.env.local` as `HUNGR_SUPABASE_SERVICE_ROLE` only | YES |
+| Google iOS maps key | `.env.local` (`EXPO_PUBLIC_MAPS_SDK_KEY`) | no (locked to your iOS app) |
+| Google web maps key | `.env.local` (`EXPO_PUBLIC_WEB_MAPS_SDK_KEY`) | no (locked to your websites) |
 | Google server key (Places + Gemini) | `supabase/.env.local` only | YES |
 
 ---
@@ -263,6 +299,14 @@ account in the local database. You just used the whole stack end to end.
 If the map is grey or blank, your `EXPO_PUBLIC_MAPS_SDK_KEY` is missing or wrong, or the Maps SDK
 for iOS is not enabled. Recheck step 4c and 5a.
 
+**To run the web version instead:**
+```
+npx expo start --web
+```
+If the web map is grey or blank, check that `EXPO_PUBLIC_WEB_MAPS_SDK_KEY` is set to your
+**hungr web maps key**, that the key allows **Maps JavaScript API**, and that the website
+restriction includes the exact local URL shown in your terminal, including the port.
+
 ---
 
 ## 7. Sign in with Google (optional for local, needed later)
@@ -274,8 +318,14 @@ Google" button you need a Google OAuth client:
 1. In Google Cloud, go to **APIs & Services**, then **OAuth consent screen**, and fill in the
    basics (app name hungr, your email). 
 2. Then **Credentials**, **Create credentials**, **OAuth client ID**, type **Web application**.
-3. Add the authorized redirect URL that Supabase gives you (see step 8b), and your site
-   `https://usehungr.app`.
+3. This client has two URL fields, and they are not the same thing:
+   - **Authorized redirect URIs**: paste only the Supabase callback URL from step 8b, which looks
+     like `https://<your-project-ref>.supabase.co/auth/v1/callback`. Nothing else goes here.
+     Google sends the user back to Supabase, not to your app, so your own site does not belong in
+     this field. (For local testing against the local backend, also add
+     `http://localhost:54321/auth/v1/callback`.)
+   - **Authorized JavaScript origins**: add your site `https://usehungr.app` (and
+     `https://www.usehungr.app` if you serve the www version).
 4. Copy the client ID and secret into Supabase (step 8b).
 
 ---
@@ -298,15 +348,48 @@ Supabase's cloud and build a real app. Here is the map of what that involves.
 4. Deploy the Google bridge functions and give them their secret keys:
    ```
    npx supabase functions deploy places-proxy
+   npx supabase functions deploy place-details
    npx supabase functions deploy grounding
-   npx supabase secrets set GOOGLE_PLACES_KEY=... GEMINI_KEY=... SUPABASE_SERVICE_ROLE=...
+   npx supabase secrets set GOOGLE_PLACES_KEY=... GEMINI_KEY=...
    ```
 
 ### 8b. Turn on authentication
-In the Supabase dashboard, under **Authentication**:
-- Enable **Email** (magic link).
-- Enable the **Google** provider and paste the OAuth client ID and secret from step 7.
-- Set the **Site URL** to `https://usehungr.app` and add your redirect URLs.
+Supabase splits this across two screens in the left sidebar under **Authentication**:
+**Sign In / Providers** (which login methods are on) and **URL Configuration** (where people are
+allowed to land after they sign in). You need both. Go slowly, the Google part has one step that
+loops back to Google Cloud.
+
+**1. Email sign-in (the magic link), usually already on.**
+Open **Authentication**, then **Sign In / Providers**. In the **Auth Providers** list, **Email**
+should already say **Enabled**. That is the magic-link login (people get a link in their inbox, no
+password). In the **User Signups** box above, leave **Allow new users to sign up** on, and leave
+**Confirm email** on so a new address is verified the first time. If you changed anything, click
+**Save changes**.
+
+**2. Google sign-in.**
+Still on **Sign In / Providers**, scroll the **Auth Providers** list, click **Google**, and turn
+it on. Supabase now shows a **Callback URL** that looks like this:
+```
+https://<your-project-ref>.supabase.co/auth/v1/callback
+```
+Copy it. This is the "authorized redirect URL that Supabase gives you" that step 7 mentioned. Go
+back to Google Cloud (**APIs & Services**, then **Credentials**), open the **Web application**
+OAuth client you made in step 7, paste this exact URL into **Authorized redirect URIs**, and save.
+
+Now copy the **Client ID** and **Client secret** from that same Google OAuth client, paste them
+into the Google provider fields back in Supabase, and click **Save**. (If you have not created the
+Google OAuth client yet, do step 7 first, then come back here.)
+
+**3. Tell Supabase where people are allowed to land.**
+In the left sidebar, open **Authentication**, then **URL Configuration**:
+- Set **Site URL** to `https://usehungr.app`. This is the default place web sign-ins return to.
+- Under **Redirect URLs**, click **Add URL** and add both of these:
+  - `hungr://*` , the phone app's deep link, so "Continue with Google" reopens hungr after Google
+  - `https://usehungr.app/*` , the web version
+
+Click save. The `hungr://*` entry is the one people forget: without it, Google sign-in on the
+phone finishes in the browser but never hands you back to the app, so it looks like nothing
+happened.
 
 ### 8c. Point the app at the cloud
 For the real build, set the app's `EXPO_PUBLIC_SUPABASE_URL` and `EXPO_PUBLIC_SUPABASE_ANON_KEY`
@@ -333,6 +416,32 @@ hungr can also run as a website at your domain:
 npx expo export --platform web
 ```
 Deploy the result to a free host like Vercel or Netlify, then point `usehungr.app` at it.
+
+### 8g. Product analytics (PostHog, a V3 nice-to-have, optional)
+This is not needed to launch. Once real people are using hungr, you will want to see what they
+do: which screens they open, whether "find food near me" actually leads to saving a place, and
+whether they come back. PostHog is a free tool that shows you those numbers. Plan to add it in
+V3, after the app is live and has some real usage to measure.
+
+When you get there, the shape is:
+1. Sign up at https://posthog.com and create a project named `hungr`. If most of your users are
+   in Europe, pick the **EU** cloud region (it keeps the data under EU privacy rules).
+2. PostHog gives you a **Project API key**. Unlike the Google server key, this one is safe to
+   ship inside the app (it can only send events, never read them). So it goes in `.env.local`
+   with the `EXPO_PUBLIC_` prefix, like the others:
+   ```
+   EXPO_PUBLIC_POSTHOG_KEY=<your PostHog project API key>
+   EXPO_PUBLIC_POSTHOG_HOST=https://eu.i.posthog.com
+   ```
+   (Use `https://us.i.posthog.com` if you chose the US region.)
+3. The app code wires up the `posthog-react-native` SDK and sends a few named events (for
+   example "place saved", "search run"). Identify each person only by their Supabase account id,
+   never their email or name.
+
+The one rule that matters: **analytics must never carry personal or sensitive information.** No
+emails, no names, and especially none of the self-declared heritage or cuisine data that v2/v3
+may collect (that is legally "special category" data). Keep PostHog's "autocapture" feature off
+so nothing sensitive gets recorded by accident, and only send the specific events you chose.
 
 ---
 
@@ -378,6 +487,9 @@ Run these from inside the `hungr` folder. Start Docker first for anything backen
 - **`npm install` shows a long red ERESOLVE error.** Run `npm install --legacy-peer-deps`.
 - **The simulator build fails the first time.** Open Xcode once, let it finish installing
   components, run `sudo xcodebuild -license accept`, then try `npx expo run:ios` again.
+- **`No iOS devices available in Simulator.app`.** Xcode is installed, but no iOS Simulator
+  runtime/device is installed yet. Open **Xcode > Settings > Platforms**, download an iOS
+  Simulator runtime, then run `npx expo run:ios` again.
 - **I get a surprise about money.** You set a budget in step 4b, so check **Budgets & alerts** in
   Google Cloud. Local development does not call Google unless the app actually searches.
 

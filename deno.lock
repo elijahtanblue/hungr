@@ -45,16 +45,24 @@
         "npm:expo@~56.0.12",
         "npm:jest-expo@^56.0.5",
         "npm:jest@^29.7.0",
+        "npm:react-dom@19.2.3",
         "npm:react-native-maps@1.27.2",
+        "npm:react-native-reanimated@4.3.1",
         "npm:react-native-safe-area-context@5.7",
         "npm:react-native-screens@4.25.2",
         "npm:react-native-url-polyfill@3",
+        "npm:react-native-web@0.21",
+        "npm:react-native-worklets@0.8.3",
         "npm:react-native@0.85.3",
         "npm:react@19.2.3",
         "npm:test-renderer@^1.2.0",
         "npm:typescript@~6.0.3",
         "npm:zustand@^5.0.14"
-      ]
+      ],
+      "overrides": {
+        "js-yaml": "5.2.0",
+        "uuid": "11.1.1"
+      }
     }
   }
 }

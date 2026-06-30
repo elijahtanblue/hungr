@@ -11,7 +11,8 @@
       "bundleIdentifier": "app.usehungr",
       "supportsTablet": false,
       "infoPlist": {
-        "NSLocationWhenInUseUsageDescription": "hungr uses your location to find food near you."
+        "NSLocationWhenInUseUsageDescription": "hungr uses your location to find food near you.",
+        "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {

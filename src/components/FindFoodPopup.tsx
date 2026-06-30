@@ -13,9 +13,11 @@ export function FindFoodPopup({ count, onClose }: { count: number; onClose: () =
           <Text style={s.title}>Food near you</Text>
         </View>
         <Text style={s.summary}>
-          {count > 0
-            ? `${count} ${count === 1 ? "spot" : "spots"} you'll probably love nearby.`
-            : "Looking for spots near you..."}
+          {count <= 0
+            ? "Looking for spots near you..."
+            : count >= 20
+            ? "Lots of spots near you. The pins are your picks."
+            : `${count} ${count === 1 ? "spot" : "spots"} near you. The pins are your picks.`}
         </Text>
         <Pressable style={s.cta} onPress={onClose} accessibilityRole="button">
           <Text style={s.ctaTxt}>Show me</Text>

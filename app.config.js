@@ -1,12 +1,28 @@
-// Injects the restricted iOS Google Maps SDK key into native config at build time.
-// Without ios.config.googleMapsApiKey, react-native-maps with PROVIDER_GOOGLE renders blank.
-module.exports = ({ config }) => ({
-  ...config,
-  ios: {
-    ...config.ios,
-    config: {
-      ...(config.ios && config.ios.config),
-      googleMapsApiKey: process.env.EXPO_PUBLIC_MAPS_SDK_KEY,
-    },
-  },
-});
+const { withPodfileProperties } = require("expo/config-plugins");
+
+function withHungrIosBuildSettings(config) {
+  return withPodfileProperties(config, (conf) => {
+    conf.modResults["ios.buildReactNativeFromSource"] = "true";
+    return conf;
+  });
+}
+
+module.exports = ({ config }) => {
+  const plugins = (config.plugins || []).filter((plugin) => {
+    const name = Array.isArray(plugin) ? plugin[0] : plugin;
+    return name !== "react-native-maps";
+  });
+
+  return withHungrIosBuildSettings({
+    ...config,
+    plugins: [
+      ...plugins,
+      [
+        "react-native-maps",
+        {
+          iosGoogleMapsApiKey: process.env.EXPO_PUBLIC_MAPS_SDK_KEY,
+        },
+      ],
+    ],
+  });
+};

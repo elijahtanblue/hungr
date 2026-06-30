@@ -71,3 +71,22 @@ from Google review text (ToS §3.2.3(c)).
 docs/superpowers/plans/2026-06-29-hungr-v1-map-foundation.md. Home businesses likely need
 first party "this is a home business" tags plus absence-of-storefront heuristics.
 **Depends on / blocked by:** A meaningful base of first party data (depends on item 1).
+
+## 6. V3 product analytics (PostHog)
+**What:** Add PostHog to measure how people actually use hungr: which screens they open, where
+the "find food near me" funnel drops off, how many places get saved per session, retention
+(do they come back and keep contributing). Client SDK `posthog-react-native`, the project API
+key shipped as `EXPO_PUBLIC_POSTHOG_KEY` (write-only, safe in the app).
+**Why:** Item 1 (the contribution flywheel) is the whole product risk, and right now it is
+unmeasured. Analytics turns "I think people save places" into numbers, so the contribution UX
+can be tuned against real funnels instead of guesses.
+**Pros:** Cheap to add (free tier is generous), turns the flywheel from a hunch into a dashboard,
+session replay and funnels are strong for a solo founder with no analytics team.
+**Cons:** One more SDK and consent surface; must respect the privacy model (no PII or place
+content in events, identify users by their Supabase id only, honour the privacy policy and any
+v2 consent gate). Autocapture should stay off so nothing sensitive leaks by default.
+**Context:** Self-declared identity data (v2/v3) is special-category, so analytics must never
+carry it. Use EU cloud if launching into GDPR markets. Wire it once there is real usage to
+measure, not before. Beginner setup steps captured in docs/GETTING-STARTED.md (section 8g).
+**Depends on / blocked by:** Real users (Milestone B shipped); ideally after item 2 legal review
+confirms the consent model.

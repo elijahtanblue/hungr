@@ -3,9 +3,9 @@
 // to short-circuit on failure (401 or 429), or null when the request may proceed.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
-const ANON = Deno.env.get("SUPABASE_ANON_KEY")!;
-const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE")!;
+const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? Deno.env.get("HUNGR_SUPABASE_URL")!;
+const ANON = Deno.env.get("SUPABASE_ANON_KEY") ?? Deno.env.get("HUNGR_SUPABASE_ANON_KEY")!;
+const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? Deno.env.get("HUNGR_SUPABASE_SERVICE_ROLE")!;
 
 export function rateLimitAllowed(allowed: unknown, error: unknown): boolean {
   return !error && allowed === true;

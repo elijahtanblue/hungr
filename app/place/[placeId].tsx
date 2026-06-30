@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { View, Text, ScrollView, Pressable, Linking, StyleSheet, ActivityIndicator } from "react-native";
 import { useLocalSearchParams, router } from "expo-router";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { getPlaceDetails, type PlaceDetails } from "../../src/api/placeDetails";
 import { getGrounded, type Grounded } from "../../src/api/grounding";
@@ -21,6 +22,7 @@ function priceLabel(level?: string): string {
 }
 
 export default function PlaceDetail() {
+  const insets = useSafeAreaInsets();
   const { placeId } = useLocalSearchParams<{ placeId: string }>();
   const [details, setDetails] = useState<PlaceDetails | null>(null);
   const [grounded, setGrounded] = useState<Grounded | null>(null);
@@ -50,10 +52,13 @@ export default function PlaceDetail() {
 
   return (
     <View style={s.wrap}>
-      <Pressable style={s.back} onPress={() => router.back()} accessibilityLabel="Back">
+      <Pressable style={[s.back, { top: insets.top + space.xs }]} onPress={() => router.back()} accessibilityLabel="Back">
         <Ionicons name="chevron-back" size={22} color={colors.ink} />
       </Pressable>
-      <ScrollView contentContainerStyle={s.content} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={[s.content, { paddingTop: insets.top + space.xxl }]}
+        showsVerticalScrollIndicator
+      >
         {loading && !details ? (
           <ActivityIndicator color={colors.accentPress} style={{ marginTop: space.xxl }} />
         ) : (

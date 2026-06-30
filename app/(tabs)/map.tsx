@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { View, Text, Pressable, StyleSheet } from "react-native";
 import { router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as Location from "expo-location";
 import { MapCanvas } from "../../src/components/MapCanvas";
 import { SearchBar } from "../../src/components/SearchBar";
@@ -14,12 +15,12 @@ import { loadSuppressedCuisines } from "../../src/api/preferences";
 import { setUserPlaceState } from "../../src/api/userPlaces";
 import { useFilters } from "../../src/store/useFilters";
 import { useDebouncedValue } from "../../src/hooks/useDebouncedValue";
+import { CUISINES } from "../../src/domain/cuisines";
 import { colors, space } from "../../src/theme";
 import type { Place, PlaceState } from "../../src/domain/types";
 
-const CUISINES = ["Chinese", "Korean", "Japanese", "Thai", "Vietnamese", "Indian"];
-
 export default function Map() {
+  const insets = useSafeAreaInsets();
   const [query, setQuery] = useState("");
   const [region, setRegion] = useState({ latitude: -33.87, longitude: 151.21, latitudeDelta: 0.05, longitudeDelta: 0.05 });
   const [places, setPlaces] = useState<Place[]>([]);
@@ -80,7 +81,7 @@ export default function Map() {
       <MapCanvas
         region={region}
         places={visible}
-        onSelect={setSelected}
+        onSelect={(p) => { setShowFind(false); setSelected(p); }}
         onRegionChange={(r) =>
           setRegion((prev) => {
             // Only follow the viewport once it has moved a meaningful distance (~80m), so
@@ -92,9 +93,11 @@ export default function Map() {
           })
         }
       />
-      <View style={s.top}>
+      {/* Cream strip so the full-bleed map does not run under the status bar / Dynamic Island. */}
+      <View style={[s.statusStrip, { height: insets.top }]} pointerEvents="none" />
+      <View style={[s.top, { top: insets.top + space.xs }]}>
         <SearchBar value={query} onChange={setQuery} onPreferences={() => setShowPrefs(true)} />
-        <CuisineFilter cuisines={CUISINES} />
+        <CuisineFilter />
       </View>
       {selected && (
         <PlaceSheet
@@ -107,20 +110,21 @@ export default function Map() {
       {!selected && !showPrefs && !showFind && (
         <Pressable
           style={s.findBtn}
-          onPress={() => { setRefresh((n) => n + 1); setShowFind(true); }}
+          onPress={() => { setSelected(null); setRefresh((n) => n + 1); setShowFind(true); }}
           accessibilityRole="button"
         >
           <Ionicons name="sparkles" size={16} color={colors.onAccent} />
           <Text style={s.findTxt}>Find food near me</Text>
         </Pressable>
       )}
-      {showFind && <FindFoodPopup count={visible.length} onClose={() => setShowFind(false)} />}
+      {!selected && showFind && <FindFoodPopup count={visible.length} onClose={() => setShowFind(false)} />}
     </View>
   );
 }
 const s = StyleSheet.create({
   wrap: { flex: 1, backgroundColor: colors.canvas },
-  top: { position: "absolute", top: space.xxl, left: space.sm, right: space.sm, gap: space.xs },
+  statusStrip: { position: "absolute", top: 0, left: 0, right: 0, backgroundColor: colors.canvas, zIndex: 1 },
+  top: { position: "absolute", left: space.sm, right: space.sm, gap: space.xs, zIndex: 2 },
   findBtn: {
     position: "absolute", bottom: space.xxl, alignSelf: "center", flexDirection: "row", alignItems: "center",
     gap: space.xs, backgroundColor: colors.accent, borderRadius: 9999, paddingHorizontal: space.lg,
