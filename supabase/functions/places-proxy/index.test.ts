@@ -1,4 +1,4 @@
-import { shapePlace } from "./index.ts";
+import { buildTextSearchBody, shapePlace } from "./index.ts";
 
 Deno.test("shapePlace keeps display-safe fields, derives a coarse cuisine, drops review text", () => {
   const raw = {
@@ -136,4 +136,12 @@ Deno.test("shapePlace covers expanded Google food types that match app labels", 
 
   if (!tacos.cuisines.includes("Tacos")) throw new Error("Tacos type tag missing");
   if (!tacos.cuisines.includes("Mexican")) throw new Error("Mexican parent for Tacos type missing");
+});
+
+Deno.test("buildTextSearchBody requests one Google page and forwards the page token", () => {
+  const body = buildTextSearchBody(-33.87, 151.21, "food", "next-page");
+
+  if (body.pageSize !== 20) throw new Error("must request 20 results per Google page");
+  if (body.pageToken !== "next-page") throw new Error("page token missing");
+  if (body.textQuery !== "food") throw new Error("text query missing");
 });

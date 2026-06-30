@@ -292,6 +292,15 @@ export function shapePlace(raw: any): SafePlace {
   };
 }
 
+export function buildTextSearchBody(lat: number, lng: number, textQuery: string, pageToken?: string) {
+  return {
+    textQuery,
+    pageSize: 20,
+    locationBias: { circle: { center: { latitude: lat, longitude: lng }, radius: 1500 } },
+    ...(pageToken ? { pageToken } : {}),
+  };
+}
+
 export default async function handler(req: Request): Promise<Response> {
   // Authenticate the caller and enforce the per-user rate limit.
   const blocked = await guard(req, MAX_PER_MIN);
@@ -300,11 +309,12 @@ export default async function handler(req: Request): Promise<Response> {
   // Fetch Google Places live, asking only for fields we are allowed to display.
   const body = await readJsonObject(req);
   if (!body.ok) return body.response;
-  const { lat, lng, query } = body.value;
+  const { lat, lng, query, pageToken } = body.value;
   if (typeof lat !== "number" || typeof lng !== "number" || !isFinite(lat) || !isFinite(lng)) {
     return new Response("Invalid coordinates", { status: 400 });
   }
   const textQuery = typeof query === "string" && query.trim() ? query.slice(0, 120) : "food";
+  const token = typeof pageToken === "string" && pageToken.trim() ? pageToken : undefined;
   const res = await fetch("https://places.googleapis.com/v1/places:searchText", {
     method: "POST",
     headers: {
@@ -313,16 +323,13 @@ export default async function handler(req: Request): Promise<Response> {
       "X-Goog-FieldMask":
         "places.id,places.displayName,places.location,places.rating,places.primaryType,places.types,places.attributions",
     },
-    body: JSON.stringify({
-      textQuery,
-      locationBias: { circle: { center: { latitude: lat, longitude: lng }, radius: 1500 } },
-    }),
+    body: JSON.stringify(buildTextSearchBody(lat, lng, textQuery, token)),
   });
   // Never forward an upstream error body to the client (it can echo the request and leak detail).
   if (!res.ok) return new Response("Upstream error", { status: 502 });
   const data = await res.json();
   const places = (data.places ?? []).map(shapePlace);
-  return new Response(JSON.stringify({ places }), {
+  return new Response(JSON.stringify({ places, nextPageToken: data.nextPageToken }), {
     headers: { "Content-Type": "application/json" },
   });
 }

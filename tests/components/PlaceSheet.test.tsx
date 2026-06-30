@@ -8,3 +8,11 @@ test("tapping Want to go calls onSetState with go", async () => {
   await fireEvent.press(screen.getByText("Want to go"));
   expect(onSetState).toHaveBeenCalledWith("p1", "go");
 });
+
+test("saved want to go state is labelled clearly", async () => {
+  const place = { placeId: "p1", name: "Spicy World", lat: 0, lng: 0, rating: 4.6, cuisines: ["Chinese"], state: "go" as const };
+
+  await render(<PlaceSheet place={place} onSetState={() => {}} />);
+
+  expect(screen.getByText("Saved")).toBeTruthy();
+});

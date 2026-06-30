@@ -11,9 +11,12 @@ import { PlaceSheet } from "../../src/components/PlaceSheet";
 import { PreferencesSheet } from "../../src/components/PreferencesSheet";
 import { FindFoodPopup } from "../../src/components/FindFoodPopup";
 import { PlacesListSheet } from "../../src/components/PlacesListSheet";
-import { searchNearby, withFirstPartyCuisines, applyFilters } from "../../src/api/places";
+import { PlaceFeedbackPrompt } from "../../src/components/PlaceFeedbackPrompt";
+import { searchNearby, withFirstPartyCuisines, withUserPlaceStates, applyFilters, mergePlaces } from "../../src/api/places";
 import { loadSuppressedCuisines } from "../../src/api/preferences";
-import { setUserPlaceState } from "../../src/api/userPlaces";
+import { setUserPlaceState, savePlaceFeedback } from "../../src/api/userPlaces";
+import { checkIn, getVisitCount } from "../../src/api/checkins";
+import { friendBeens } from "../../src/api/social";
 import { useFilters } from "../../src/store/useFilters";
 import { useDebouncedValue } from "../../src/hooks/useDebouncedValue";
 import { CUISINE_GROUPS } from "../../src/domain/cuisines";
@@ -30,6 +33,11 @@ export default function Map() {
   const [showFind, setShowFind] = useState(false);
   const [showList, setShowList] = useState(false);
   const [refresh, setRefresh] = useState(0);
+  const [searchOverride, setSearchOverride] = useState<string | null>(null);
+  const [feedback, setFeedback] = useState<{ place: Place; state: "been" | "avoid" } | null>(null);
+  const [friendsBeen, setFriendsBeen] = useState<Set<string>>(new Set());
+  const [friendsOnly, setFriendsOnly] = useState(false);
+  const [visitCount, setVisitCount] = useState(0);
   const { selected: sel, suppressed, setSuppressed } = useFilters();
 
   // Debounce the query so we do not hit the Places proxy on every keystroke.
@@ -53,30 +61,57 @@ export default function Map() {
     loadSuppressedCuisines().then(setSuppressed).catch(() => {});
   }, [setSuppressed]);
 
+  // Places friends (and people you follow) have been, to power the "Friends Been" filter.
+  useEffect(() => {
+    friendBeens().then((b) => setFriendsBeen(new Set(b.map((x) => x.placeId)))).catch(() => {});
+  }, []);
+
+  // The signed-in user's private visit count for the open place (never shown to anyone else).
+  useEffect(() => {
+    if (!selected) { setVisitCount(0); return; }
+    let active = true;
+    getVisitCount(selected.placeId).then((n) => { if (active) setVisitCount(n); }).catch(() => {});
+    return () => { active = false; };
+  }, [selected]);
+
   useEffect(() => {
     const id = ++reqId.current;
-    searchNearby(region.latitude, region.longitude, debouncedQuery || "food")
+    const searchText = searchOverride ?? (debouncedQuery || "food");
+    searchNearby(region.latitude, region.longitude, searchText)
       .then(withFirstPartyCuisines)
+      .then(withUserPlaceStates)
       .then((result) => {
-        if (id === reqId.current) setPlaces(result); // ignore stale responses
+        if (id === reqId.current) setPlaces((prev) => mergePlaces(prev, result)); // ignore stale responses
       })
-      .catch(() => {
-        if (id === reqId.current) setPlaces([]);
-      });
-  }, [region.latitude, region.longitude, debouncedQuery, refresh]);
+      .catch(() => {});
+  }, [region.latitude, region.longitude, debouncedQuery, searchOverride, refresh]);
+
+  function submitSearch() {
+    setSelected(null);
+    setShowList(false);
+    setSearchOverride(query.trim() || "food");
+    setRefresh((n) => n + 1);
+    setShowFind(true);
+  }
 
   async function setState(placeId: string, state: PlaceState) {
+    const place = places.find((p) => p.placeId === placeId) ?? selected;
     try {
       const saved = await setUserPlaceState(placeId, state);
       if (!saved) return;
       setPlaces((ps) => ps.map((p) => (p.placeId === placeId ? { ...p, state } : p)));
       setSelected(null);
+      if ((state === "been" || state === "avoid") && place) {
+        setFeedback({ place: { ...place, state }, state });
+      }
     } catch {
       return;
     }
   }
 
-  const visible = applyFilters(places, { selected: sel, suppressed });
+  const filtered = applyFilters(places, { selected: sel, suppressed });
+  const visible = friendsOnly ? filtered.filter((p) => friendsBeen.has(p.placeId)) : filtered;
+  const currentSelected = selected ? places.find((p) => p.placeId === selected.placeId) ?? selected : null;
 
   return (
     <View style={s.wrap}>
@@ -99,21 +134,42 @@ export default function Map() {
       {/* Cream strip so the full-bleed map does not run under the status bar / Dynamic Island. */}
       <View style={[s.statusStrip, { height: insets.top }]} pointerEvents="none" />
       <View style={[s.top, { top: insets.top + space.xs }]}>
-        <SearchBar value={query} onChange={setQuery} onPreferences={() => setShowPrefs(true)} />
+        <SearchBar
+          value={query}
+          onChange={(text) => { setQuery(text); setSearchOverride(null); }}
+          onPreferences={() => setShowPrefs(true)}
+          onSubmit={submitSearch}
+        />
         <CuisineFilter />
+        {(friendsBeen.size > 0 || friendsOnly) && (
+          <Pressable
+            onPress={() => setFriendsOnly((v) => !v)}
+            style={[s.friendsChip, friendsOnly && s.friendsChipOn]}
+            accessibilityRole="button"
+            accessibilityState={{ selected: friendsOnly }}
+            accessibilityLabel="Show only places friends have been"
+          >
+            <Ionicons name="people" size={14} color={friendsOnly ? colors.onAccent : colors.been} />
+            <Text style={[s.friendsChipTxt, friendsOnly && s.friendsChipOnTxt]}>Friends Been</Text>
+          </Pressable>
+        )}
       </View>
-      {selected && (
+      {currentSelected && (
         <PlaceSheet
-          place={selected}
+          place={currentSelected}
           onSetState={setState}
           onOpenDetail={(placeId) => router.push({ pathname: "/place/[placeId]", params: { placeId } })}
+          visitCount={visitCount}
+          onCheckIn={() => {
+            checkIn(currentSelected.placeId).then((n) => { if (n !== null) setVisitCount(n); }).catch(() => {});
+          }}
         />
       )}
       {showPrefs && <PreferencesSheet groups={CUISINE_GROUPS} onClose={() => setShowPrefs(false)} />}
       {!selected && !showPrefs && !showFind && !showList && (
         <Pressable
           style={s.findBtn}
-          onPress={() => { setSelected(null); setRefresh((n) => n + 1); setShowFind(true); }}
+          onPress={submitSearch}
           accessibilityRole="button"
         >
           <Ionicons name="sparkles" size={16} color={colors.onAccent} />
@@ -134,6 +190,20 @@ export default function Map() {
           onClose={() => setShowList(false)}
         />
       )}
+      {feedback && (
+        <PlaceFeedbackPrompt
+          placeName={feedback.place.name}
+          state={feedback.state}
+          onClose={() => setFeedback(null)}
+          onSubmit={(r) => {
+            savePlaceFeedback(feedback.place.placeId, {
+              rating: feedback.state === "been" ? r.rating : null,
+              avoidReason: feedback.state === "avoid" ? r.reason : null,
+              note: r.note.trim() || null,
+            }).catch(() => {});
+          }}
+        />
+      )}
     </View>
   );
 }
@@ -148,4 +218,12 @@ const s = StyleSheet.create({
     shadowOffset: { width: 0, height: 4 }, elevation: 5,
   },
   findTxt: { color: colors.onAccent, fontWeight: "700", fontSize: 14 },
+  friendsChip: {
+    flexDirection: "row", alignItems: "center", gap: space.xs, alignSelf: "flex-start",
+    backgroundColor: colors.surface, borderColor: colors.hair, borderWidth: 1, borderRadius: 9999,
+    paddingHorizontal: space.md, paddingVertical: 8,
+  },
+  friendsChipOn: { backgroundColor: colors.accent, borderColor: colors.accent },
+  friendsChipTxt: { color: colors.ink, fontWeight: "700", fontSize: 13 },
+  friendsChipOnTxt: { color: colors.onAccent },
 });

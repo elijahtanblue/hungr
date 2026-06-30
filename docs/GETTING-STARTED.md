@@ -443,6 +443,75 @@ emails, no names, and especially none of the self-declared heritage or cuisine d
 may collect (that is legally "special category" data). Keep PostHog's "autocapture" feature off
 so nothing sensitive gets recorded by accident, and only send the specific events you chose.
 
+### 8h. Link Instagram and TikTok accounts (later, optional)
+Do this as a separate **Link account** feature after the person has already signed in with email or
+Google. Do not make Instagram or TikTok the main login method yet.
+
+Why: hungr's real account should stay anchored to Supabase Auth, usually email or Google. Instagram
+and TikTok should be profile attachments that prove or import a handle, not the thing that owns the
+user's whole hungr account. That keeps sign-in simple, makes unlinking safer, and avoids losing a
+user if a social platform changes its API rules.
+
+The first shippable version should be:
+
+1. On the **Account** tab, add a **Social accounts** section.
+2. Let the user type their Instagram or TikTok handle manually.
+3. Store only the handle, profile URL, provider name, and whether it is verified by OAuth.
+4. Show the linked handle on their hungr profile only if they choose to make it visible.
+
+Then add OAuth verification later:
+
+1. Create developer apps:
+   - TikTok: create a TikTok developer app, add **Login Kit**, request only the scopes needed to
+     read profile basics, and register an HTTPS redirect URL.
+   - Instagram: create a Meta developer app for the Instagram API with Instagram Login. The old
+     Instagram Basic Display API is gone, and the current official Instagram API path is mainly for
+     Instagram professional accounts, meaning creator or business accounts. Keep manual handle entry
+     as the fallback for normal personal accounts.
+2. Add backend secrets, never client secrets:
+   ```
+   TIKTOK_CLIENT_KEY=...
+   TIKTOK_CLIENT_SECRET=...
+   INSTAGRAM_CLIENT_ID=...
+   INSTAGRAM_CLIENT_SECRET=...
+   ```
+   These belong in Supabase secrets or `supabase/.env.local`, never in `.env.local` with an
+   `EXPO_PUBLIC_` prefix.
+3. Add a small table, owned by the signed-in user:
+   ```
+   linked_social_accounts
+   - id
+   - user_id
+   - provider          -- instagram or tiktok
+   - handle
+   - profile_url
+   - provider_user_id  -- only if the provider returns one
+   - is_verified
+   - visibility        -- private, friends, public
+   - created_at
+   - updated_at
+   ```
+4. Add two backend routes or Edge Functions per provider:
+   - `start-social-link`, checks the current Supabase user, creates a one-time `state`, then sends
+     the user to Instagram or TikTok.
+   - `finish-social-link`, receives the OAuth callback, checks `state`, exchanges the code for a
+     token, fetches the handle, stores the linked account, then returns the user to hungr.
+5. Use an HTTPS callback first, for example:
+   ```
+   https://usehungr.app/oauth/tiktok/callback
+   https://usehungr.app/oauth/instagram/callback
+   ```
+   After the backend finishes linking, it can deep-link back into the app with `hungr://...`.
+
+Expo already has the right pieces for this. The app uses the `hungr` scheme in `app.json`, and
+`expo-auth-session` plus `expo-web-browser` handle browser-based OAuth flows. For production social
+linking, keep the code exchange on the backend so TikTok and Instagram client secrets never ship in
+the app.
+
+The privacy rule: this should import **only the handle/profile link by default**, not posts, likes,
+followers, DMs, or inferred interests. If you ever import creator content from TikTok or Instagram,
+treat that as a separate feature with its own consent screen, platform review, and terms review.
+
 ---
 
 ## 9. Your domain: usehungr.app

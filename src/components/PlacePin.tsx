@@ -12,11 +12,13 @@ const bubbleColor: Record<PlaceState, string> = {
 
 export function PlacePin({ state, rating, selected }: { state?: PlaceState; rating?: number; selected?: boolean }) {
   const isAmber = !state || state === "go";
-  const bg = isAmber ? (selected ? colors.accentPress : colors.accent) : bubbleColor[state!];
+  const bg = isAmber ? (selected ? "#F59E0B" : colors.accent) : bubbleColor[state!];
   return (
     <View style={s.wrap}>
-      <View style={[s.bubble, { backgroundColor: bg }, selected && s.selected]}>
-        {state === "been" ? (
+      <View testID={state === "go" ? "place-pin-go" : undefined} style={[s.bubble, { backgroundColor: bg }, selected && s.selected]}>
+        {state === "go" ? (
+          <Ionicons name="bookmark" size={14} color={colors.onAccent} />
+        ) : state === "been" ? (
           <Ionicons name="checkmark" size={15} color="#fff" />
         ) : state === "avoid" ? (
           <Ionicons name="close" size={15} color="#fff" />
@@ -36,7 +38,7 @@ const s = StyleSheet.create({
     borderWidth: 1.5, borderColor: colors.surface,
     shadowColor: colors.ink, shadowOpacity: 0.2, shadowRadius: 2.5, shadowOffset: { width: 0, height: 1 }, elevation: 3,
   },
-  selected: { transform: [{ scale: 1.12 }], borderColor: colors.onAccent },
+  selected: { transform: [{ scale: 1.12 }], borderColor: colors.ink, borderWidth: 2 },
   stem: {
     width: 0, height: 0, borderLeftWidth: 5, borderRightWidth: 5, borderTopWidth: 7,
     borderLeftColor: "transparent", borderRightColor: "transparent", marginTop: -2,

@@ -62,7 +62,8 @@ export function MapCanvas({
             <AdvancedMarker key={p.placeId} position={{ lat: p.lat, lng: p.lng }} onClick={() => onSelect(p)}>
               <Pin
                 background={p.state ? pinBg[p.state] : p.placeId === selectedId ? colors.accentPress : colors.accent}
-                borderColor={colors.ink}
+                borderColor={p.placeId === selectedId ? "#F59E0B" : colors.surface}
+                glyph={p.state === "go" ? "★" : undefined}
                 glyphColor={colors.onAccent}
               />
             </AdvancedMarker>

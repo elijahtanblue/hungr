@@ -90,7 +90,7 @@ const s = StyleSheet.create({
   wrap: { flex: 1, backgroundColor: colors.canvas },
   back: { position: "absolute", top: space.xxl, left: space.md, zIndex: 2, width: 40, height: 40, borderRadius: 99, alignItems: "center", justifyContent: "center", backgroundColor: colors.surface, borderColor: colors.hair, borderWidth: 1 },
   content: { padding: space.lg, paddingTop: space.xxl + space.xl, gap: space.md },
-  name: { fontSize: 26, fontWeight: "800", color: colors.ink },
+  name: { fontSize: 26, fontWeight: "800", color: colors.ink, marginLeft: 52 },
   metaRow: { flexDirection: "row", gap: space.md },
   meta: { fontSize: 14, fontWeight: "600", color: colors.muted },
   address: { fontSize: 14, color: colors.muted },

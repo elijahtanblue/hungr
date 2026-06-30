@@ -9,13 +9,17 @@ test("GoogleReviewsBlock shows a review and always renders attribution", async (
     placeId: "p1",
     name: "Spicy World",
     rating: 4.6,
-    reviews: [{ author: "Jane", rating: 5, text: "The mala numbs.", relativeTime: "2 weeks ago" }],
+    reviews: [
+      { author: "Jane", rating: 5, text: "The mala numbs.", relativeTime: "2 weeks ago" },
+      { author: "Kai", rating: 4, text: "Great noodles.", relativeTime: "1 month ago" },
+    ],
     attribution: "Powered by Google",
   };
   await render(<GoogleReviewsBlock details={details} />);
   expect(screen.getByText("Jane")).toBeTruthy();
   expect(screen.getByText("The mala numbs.")).toBeTruthy();
   expect(screen.getByText("Powered by Google")).toBeTruthy(); // attribution must render
+  expect(screen.getAllByTestId("google-review-card")).toHaveLength(2);
 });
 
 test("GroundedBlock shows the answer and its source link", async () => {

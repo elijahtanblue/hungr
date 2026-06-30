@@ -13,7 +13,7 @@ export function GoogleReviewsBlock({ details }: { details: PlaceDetails }) {
         <Text style={s.empty}>No Google reviews to show.</Text>
       ) : (
         details.reviews.map((r, i) => (
-          <View key={i} style={s.review}>
+          <View key={i} testID="google-review-card" style={s.review}>
             <View style={s.row}>
               <Text style={s.author}>{r.author || "Google reviewer"}</Text>
               {r.rating !== undefined && <Text style={s.rating}>{"★"} {r.rating}</Text>}
@@ -29,9 +29,9 @@ export function GoogleReviewsBlock({ details }: { details: PlaceDetails }) {
 }
 
 const s = StyleSheet.create({
-  block: { backgroundColor: colors.surface, borderColor: colors.hair, borderWidth: 1, borderLeftColor: colors.slate, borderLeftWidth: 3, borderRadius: radius.lg, padding: space.md, gap: space.sm },
+  block: { gap: space.sm },
   heading: { fontSize: 16, fontWeight: "800", color: colors.slate },
-  review: { gap: 2, paddingBottom: space.sm, borderBottomColor: colors.hair, borderBottomWidth: 1 },
+  review: { backgroundColor: colors.surface, borderColor: colors.hair, borderWidth: 1, borderLeftColor: colors.slate, borderLeftWidth: 3, borderRadius: radius.lg, padding: space.md, gap: 2 },
   row: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   author: { fontSize: 15, fontWeight: "700", color: colors.ink },
   rating: { fontSize: 13, fontWeight: "600", color: colors.slate },

@@ -3,6 +3,11 @@ import Account from "../../app/(tabs)/account";
 import { supabase } from "../../src/lib/supabase";
 
 jest.mock("expo-router", () => ({ router: { replace: jest.fn() } }));
+jest.mock("../../src/api/social", () => ({
+  getMyProfile: jest.fn().mockResolvedValue(null),
+  setUsername: jest.fn().mockResolvedValue({ ok: true }),
+  setShareActivity: jest.fn().mockResolvedValue(true),
+}));
 jest.mock("../../src/lib/supabase", () => ({
   supabase: {
     auth: {

@@ -1,0 +1,93 @@
+import {
+  followUser, requestFriend, respondFriend, searchUsers, listFriends, friendBeens,
+  getMyProfile, setUsername, setShareActivity,
+} from "../../src/api/social";
+import { supabase } from "../../src/lib/supabase";
+
+jest.mock("../../src/lib/supabase", () => ({
+  supabase: { rpc: jest.fn(), auth: { getUser: jest.fn() }, from: jest.fn() },
+}));
+
+beforeEach(() => jest.clearAllMocks());
+
+test("followUser calls the follow_user RPC with the target", async () => {
+  (supabase.rpc as jest.Mock).mockResolvedValue({ error: null });
+  await followUser("u2");
+  expect(supabase.rpc).toHaveBeenCalledWith("follow_user", { target: "u2" });
+});
+
+test("mutations surface RPC errors", async () => {
+  (supabase.rpc as jest.Mock).mockResolvedValue({ error: new Error("denied") });
+  await expect(requestFriend("u2")).rejects.toThrow("denied");
+});
+
+test("respondFriend passes the accept flag", async () => {
+  (supabase.rpc as jest.Mock).mockResolvedValue({ error: null });
+  await respondFriend("u2", true);
+  expect(supabase.rpc).toHaveBeenCalledWith("respond_friend", { requester: "u2", accept: true });
+});
+
+test("setShareActivity updates the caller's own profile flag", async () => {
+  (supabase.auth.getUser as jest.Mock).mockResolvedValue({ data: { user: { id: "u1" } } });
+  const eq = jest.fn().mockResolvedValue({ error: null });
+  const update = jest.fn().mockReturnValue({ eq });
+  (supabase.from as jest.Mock).mockReturnValue({ update });
+
+  await expect(setShareActivity(false)).resolves.toBe(true);
+  expect(update).toHaveBeenCalledWith({ shares_activity: false });
+  expect(eq).toHaveBeenCalledWith("id", "u1");
+});
+
+test("searchUsers maps rows and skips the RPC for blank input", async () => {
+  expect(await searchUsers("   ")).toEqual([]);
+  expect(supabase.rpc).not.toHaveBeenCalled();
+
+  (supabase.rpc as jest.Mock).mockResolvedValue({
+    data: [{ id: "u2", username: "jenny", display_name: "Jenny" }],
+    error: null,
+  });
+  expect(await searchUsers("jen")).toEqual([{ id: "u2", username: "jenny", displayName: "Jenny" }]);
+});
+
+test("read helpers fail soft to an empty list on error", async () => {
+  (supabase.rpc as jest.Mock).mockResolvedValue({ data: null, error: new Error("rpc down") });
+  expect(await listFriends()).toEqual([]);
+});
+
+test("friendBeens maps snake_case rows to camelCase", async () => {
+  (supabase.rpc as jest.Mock).mockResolvedValue({
+    data: [{ place_id: "p1", friend_id: "u2", friend_name: "Jenny", friend_username: "jenny", visited_at: "2026-06-30T00:00:00Z" }],
+    error: null,
+  });
+  expect(await friendBeens()).toEqual([
+    { placeId: "p1", friendId: "u2", friendName: "Jenny", friendUsername: "jenny", visitedAt: "2026-06-30T00:00:00Z" },
+  ]);
+});
+
+test("setUsername rejects malformed handles before any network call", async () => {
+  const res = await setUsername("ab");
+  expect(res).toEqual({ ok: false, error: expect.stringContaining("3-20") });
+  expect(supabase.from).not.toHaveBeenCalled();
+});
+
+test("setUsername surfaces a taken handle", async () => {
+  (supabase.auth.getUser as jest.Mock).mockResolvedValue({ data: { user: { id: "u1" } } });
+  (supabase.from as jest.Mock).mockReturnValue({
+    update: () => ({ eq: jest.fn().mockResolvedValue({ error: { code: "23505" } }) }),
+  });
+  expect(await setUsername("Jenny")).toEqual({ ok: false, error: "That handle is taken." });
+});
+
+test("setUsername lowercases and saves a valid handle", async () => {
+  (supabase.auth.getUser as jest.Mock).mockResolvedValue({ data: { user: { id: "u1" } } });
+  const eq = jest.fn().mockResolvedValue({ error: null });
+  const update = jest.fn().mockReturnValue({ eq });
+  (supabase.from as jest.Mock).mockReturnValue({ update });
+  expect(await setUsername("Jenny")).toEqual({ ok: true });
+  expect(update).toHaveBeenCalledWith({ username: "jenny" });
+});
+
+test("getMyProfile returns null when signed out", async () => {
+  (supabase.auth.getUser as jest.Mock).mockResolvedValue({ data: { user: null } });
+  expect(await getMyProfile()).toBeNull();
+});
