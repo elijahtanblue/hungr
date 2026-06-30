@@ -98,6 +98,12 @@ export async function listFriends(): Promise<UserSummary[]> {
   return data.map(toUserSummary);
 }
 
+export async function listFollowing(): Promise<UserSummary[]> {
+  const { data, error } = await supabase.rpc("list_following");
+  if (error || !Array.isArray(data)) return [];
+  return data.map(toUserSummary);
+}
+
 export async function pendingFriendRequests(): Promise<UserSummary[]> {
   const { data, error } = await supabase.rpc("pending_friend_requests");
   if (error || !Array.isArray(data)) return [];

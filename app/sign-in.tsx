@@ -63,7 +63,10 @@ export default function SignIn() {
 
   return (
     <View style={s.wrap}>
-      <Text style={s.brand}>hungr</Text>
+      <View style={s.brandRow}>
+        <Text style={s.brand}>hungr</Text>
+        <Text style={[s.brand, s.brandDot]}>.</Text>
+      </View>
       <Text style={s.tag}>Find food worth the trip.</Text>
       <TextInput
         style={s.input}
@@ -87,7 +90,9 @@ export default function SignIn() {
 
 const s = StyleSheet.create({
   wrap: { flex: 1, justifyContent: "center", padding: space.xl, backgroundColor: colors.canvas, gap: space.md },
+  brandRow: { flexDirection: "row", alignItems: "flex-end" },
   brand: { fontSize: 44, color: colors.ink, fontFamily: fonts.brand },
+  brandDot: { color: colors.accentPress },
   tag: { fontSize: 16, color: colors.muted, marginBottom: space.lg },
   input: { backgroundColor: colors.surface, borderColor: colors.hair, borderWidth: 1, borderRadius: radius.md, padding: space.md, color: colors.ink, minHeight: 48 },
   primary: { backgroundColor: colors.accent, borderRadius: radius.md, padding: space.md, alignItems: "center", minHeight: 48 },

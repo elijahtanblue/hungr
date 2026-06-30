@@ -1,15 +1,17 @@
 import { useState } from "react";
 import { View, Text, Pressable, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { colors, radius, space } from "../../src/theme";
 
 type Scope = "near" | "global";
 
 // Trends. The near/global toggle is here now; the ranked content is a later build.
 export default function Trends() {
+  const insets = useSafeAreaInsets();
   const [scope, setScope] = useState<Scope>("near");
   return (
-    <View style={s.wrap}>
+    <View testID="trends-screen" style={[s.wrap, { paddingTop: insets.top + space.lg }]}>
       <Text style={s.h1}>Trends</Text>
       <View style={s.toggle}>
         <Pressable
@@ -42,7 +44,7 @@ export default function Trends() {
 }
 
 const s = StyleSheet.create({
-  wrap: { flex: 1, backgroundColor: colors.canvas, padding: space.xl, paddingTop: space.xxl },
+  wrap: { flex: 1, backgroundColor: colors.canvas, padding: space.xl },
   h1: { fontSize: 26, fontWeight: "800", color: colors.ink, marginBottom: space.lg },
   toggle: { flexDirection: "row", backgroundColor: colors.surface, borderColor: colors.hair, borderWidth: 1, borderRadius: radius.pill, padding: 3, alignSelf: "flex-start" },
   seg: { paddingVertical: space.sm, paddingHorizontal: space.lg, borderRadius: radius.pill },

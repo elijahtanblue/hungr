@@ -1,6 +1,6 @@
 import {
-  followUser, requestFriend, respondFriend, searchUsers, listFriends, friendBeens,
-  getMyProfile, setUsername, setShareActivity,
+  followUser, requestFriend, respondFriend, searchUsers, listFriends, listFollowing, friendBeens,
+  getMyProfile, setUsername, setShareActivity, unfollowUser, unfriend,
 } from "../../src/api/social";
 import { supabase } from "../../src/lib/supabase";
 
@@ -14,6 +14,16 @@ test("followUser calls the follow_user RPC with the target", async () => {
   (supabase.rpc as jest.Mock).mockResolvedValue({ error: null });
   await followUser("u2");
   expect(supabase.rpc).toHaveBeenCalledWith("follow_user", { target: "u2" });
+});
+
+test("unfollowUser and unfriend call their RPCs with the target", async () => {
+  (supabase.rpc as jest.Mock).mockResolvedValue({ error: null });
+
+  await unfollowUser("u2");
+  await unfriend("u3");
+
+  expect(supabase.rpc).toHaveBeenCalledWith("unfollow_user", { target: "u2" });
+  expect(supabase.rpc).toHaveBeenCalledWith("unfriend", { other: "u3" });
 });
 
 test("mutations surface RPC errors", async () => {
@@ -52,6 +62,16 @@ test("searchUsers maps rows and skips the RPC for blank input", async () => {
 test("read helpers fail soft to an empty list on error", async () => {
   (supabase.rpc as jest.Mock).mockResolvedValue({ data: null, error: new Error("rpc down") });
   expect(await listFriends()).toEqual([]);
+});
+
+test("listFollowing maps one-way follows", async () => {
+  (supabase.rpc as jest.Mock).mockResolvedValue({
+    data: [{ id: "u2", username: "jenny", display_name: "Jenny" }],
+    error: null,
+  });
+
+  await expect(listFollowing()).resolves.toEqual([{ id: "u2", username: "jenny", displayName: "Jenny" }]);
+  expect(supabase.rpc).toHaveBeenCalledWith("list_following");
 });
 
 test("friendBeens maps snake_case rows to camelCase", async () => {

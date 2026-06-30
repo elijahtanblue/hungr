@@ -33,6 +33,12 @@ test("submitting an email requests a magic link", async () => {
   );
 });
 
+test("brand wordmark includes an amber period", async () => {
+  await render(<SignIn />);
+  expect(screen.getByText("hungr")).toBeTruthy();
+  expect(screen.getByText(".")).toBeTruthy();
+});
+
 test("Google sign-in establishes a session from the implicit-flow redirect", async () => {
   (WebBrowser.openAuthSessionAsync as jest.Mock).mockResolvedValue({
     type: "success",

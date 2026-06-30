@@ -15,6 +15,7 @@ import { PlaceFeedbackPrompt } from "../../src/components/PlaceFeedbackPrompt";
 import { searchNearby, withFirstPartyCuisines, withUserPlaceStates, applyFilters, mergePlaces } from "../../src/api/places";
 import { loadSuppressedCuisines } from "../../src/api/preferences";
 import { setUserPlaceState, savePlaceFeedback } from "../../src/api/userPlaces";
+import { saveCommunityReview } from "../../src/api/community";
 import { checkIn, getVisitCount } from "../../src/api/checkins";
 import { friendBeens } from "../../src/api/social";
 import { useFilters } from "../../src/store/useFilters";
@@ -201,6 +202,9 @@ export default function Map() {
               avoidReason: feedback.state === "avoid" ? r.reason : null,
               note: r.note.trim() || null,
             }).catch(() => {});
+            if (feedback.state === "been" && r.note.trim()) {
+              saveCommunityReview(feedback.place.placeId, { body: r.note, rating: r.rating }).catch(() => {});
+            }
           }}
         />
       )}

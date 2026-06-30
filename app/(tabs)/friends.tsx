@@ -4,7 +4,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   searchUsers, listFriends, pendingFriendRequests, requestFriend, respondFriend, followUser,
-  friendBeens, getMyProfile, type UserSummary, type FriendBeen,
+  unfollowUser, unfriend, listFollowing, friendBeens, getMyProfile, type UserSummary, type FriendBeen,
 } from "../../src/api/social";
 import { getPlaceNames } from "../../src/api/placeNames";
 import { useDebouncedValue } from "../../src/hooks/useDebouncedValue";
@@ -35,12 +35,14 @@ export default function Friends() {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<UserSummary[]>([]);
   const [requested, setRequested] = useState<Set<string>>(new Set());
+  const [following, setFollowing] = useState<UserSummary[]>([]);
   const [feed, setFeed] = useState<FriendBeen[]>([]);
   const [names, setNames] = useState<Record<string, string>>({});
   const [myHandle, setMyHandle] = useState<string | null>(null);
 
   const load = useCallback(() => {
     listFriends().then(setFriends).catch(() => {});
+    listFollowing().then(setFollowing).catch(() => {});
     pendingFriendRequests().then(setRequests).catch(() => {});
     getMyProfile().then((p) => setMyHandle(p?.username ?? null)).catch(() => {});
     friendBeens()
@@ -73,6 +75,15 @@ export default function Friends() {
   }
   async function follow(id: string) {
     try { await followUser(id); } catch { /* ignore */ }
+    load();
+  }
+  async function removeFriend(id: string) {
+    try { await unfriend(id); } catch { /* ignore */ }
+    load();
+  }
+  async function removeFollow(id: string) {
+    try { await unfollowUser(id); } catch { /* ignore */ }
+    load();
   }
   function invite() {
     const message = myHandle
@@ -80,6 +91,9 @@ export default function Friends() {
       : `I'm using hungr to map the best food spots. Join me: https://usehungr.app`;
     Share.share({ message }).catch(() => {});
   }
+
+  const friendIds = new Set(friends.map((u) => u.id));
+  const oneWayFollowing = following.filter((u) => !friendIds.has(u.id));
 
   return (
     <ScrollView style={s.wrap} contentContainerStyle={[s.content, { paddingTop: insets.top + space.lg }]}>
@@ -181,11 +195,30 @@ export default function Friends() {
           friends.map((u) => (
             <View key={u.id} style={s.row}>
               <Text style={s.name}>{label(u)}</Text>
-              <Ionicons name="people" size={18} color={colors.been} />
+              <View style={s.rowActions}>
+                <Ionicons name="people" size={18} color={colors.been} />
+                <Pressable style={s.ghostPill} onPress={() => removeFriend(u.id)} accessibilityRole="button">
+                  <Text style={s.ghostPillTxt}>Remove</Text>
+                </Pressable>
+              </View>
             </View>
           ))
         )}
       </View>
+
+      {oneWayFollowing.length > 0 && (
+        <View style={s.section}>
+          <Text style={s.label}>Following</Text>
+          {oneWayFollowing.map((u) => (
+            <View key={u.id} style={s.row}>
+              <Text style={s.name}>{label(u)}</Text>
+              <Pressable style={s.ghostPill} onPress={() => removeFollow(u.id)} accessibilityRole="button">
+                <Text style={s.ghostPillTxt}>Unfollow</Text>
+              </Pressable>
+            </View>
+          ))}
+        </View>
+      )}
     </ScrollView>
   );
 }

@@ -2,11 +2,13 @@ import { useEffect, useState } from "react";
 import { View, Text, TextInput, Pressable, Switch, StyleSheet } from "react-native";
 import { router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { supabase } from "../../src/lib/supabase";
 import { getMyProfile, setUsername, setShareActivity } from "../../src/api/social";
 import { colors, radius, space } from "../../src/theme";
 
 export default function Account() {
+  const insets = useSafeAreaInsets();
   const [email, setEmail] = useState<string | null>(null);
   const [handle, setHandle] = useState("");
   const [savedHandle, setSavedHandle] = useState<string | null>(null);
@@ -46,7 +48,7 @@ export default function Account() {
   const dirty = handle.trim().toLowerCase() !== (savedHandle ?? "");
 
   return (
-    <View style={s.wrap}>
+    <View testID="account-screen" style={[s.wrap, { paddingTop: insets.top + space.lg }]}>
       <Text style={s.h1}>Account</Text>
       <View style={s.card}>
         <View style={s.avatar}>
@@ -94,6 +96,15 @@ export default function Account() {
         />
       </View>
 
+      <Pressable style={s.importRow} onPress={() => router.push("/my-places")} accessibilityRole="button">
+        <Ionicons name="bookmark-outline" size={18} color={colors.accentPress} />
+        <View style={s.toggleText}>
+          <Text style={s.toggleTitle}>My places</Text>
+          <Text style={s.toggleHelp}>Review your Want to go, Been, and Avoid spots.</Text>
+        </View>
+        <Ionicons name="chevron-forward" size={18} color={colors.muted} />
+      </Pressable>
+
       <Pressable style={s.importRow} onPress={() => router.push("/import")} accessibilityRole="button">
         <Ionicons name="cloud-upload-outline" size={18} color={colors.accentPress} />
         <View style={s.toggleText}>
@@ -116,7 +127,7 @@ export default function Account() {
 }
 
 const s = StyleSheet.create({
-  wrap: { flex: 1, backgroundColor: colors.canvas, padding: space.xl, paddingTop: space.xxl },
+  wrap: { flex: 1, backgroundColor: colors.canvas, padding: space.xl },
   h1: { fontSize: 26, fontWeight: "800", color: colors.ink, marginBottom: space.xl },
   card: {
     flexDirection: "row", alignItems: "center", gap: space.md, backgroundColor: colors.surface,

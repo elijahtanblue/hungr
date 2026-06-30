@@ -41,3 +41,6 @@ yarn-error.*
 /android
 .env
 .env.localdev.bak
+
+# founder seed secrets (local only)
+scripts/.env.seed

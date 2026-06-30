@@ -5,7 +5,14 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { getPlaceDetails, type PlaceDetails } from "../../src/api/placeDetails";
 import { getGrounded, type Grounded } from "../../src/api/grounding";
-import { getCommunity, type CommunityReview } from "../../src/api/community";
+import {
+  addPlaceTag,
+  deleteCommunityReview,
+  getCommunity,
+  saveCommunityReview,
+  type CommunityReview,
+  type ReviewDraft,
+} from "../../src/api/community";
 import { GoogleReviewsBlock } from "../../src/components/GoogleReviewsBlock";
 import { GroundedBlock } from "../../src/components/GroundedBlock";
 import { CommunityBlock } from "../../src/components/CommunityBlock";
@@ -28,6 +35,31 @@ export default function PlaceDetail() {
   const [grounded, setGrounded] = useState<Grounded | null>(null);
   const [community, setCommunity] = useState<{ reviews: CommunityReview[]; tags: string[] } | null>(null);
   const [loading, setLoading] = useState(true);
+
+  function loadCommunity() {
+    if (!placeId) return;
+    getCommunity(placeId).then(setCommunity).catch(() => {});
+  }
+
+  async function handleSaveReview(draft: ReviewDraft): Promise<boolean> {
+    if (!placeId) return false;
+    const saved = await saveCommunityReview(placeId, draft);
+    if (saved) loadCommunity();
+    return saved;
+  }
+
+  async function handleDeleteReview(id: string): Promise<boolean> {
+    const deleted = await deleteCommunityReview(id);
+    if (deleted) loadCommunity();
+    return deleted;
+  }
+
+  async function handleAddTag(tag: string): Promise<boolean> {
+    if (!placeId) return false;
+    const saved = await addPlaceTag(placeId, tag);
+    if (saved) loadCommunity();
+    return saved;
+  }
 
   useEffect(() => {
     if (!placeId) return;
@@ -78,7 +110,13 @@ export default function PlaceDetail() {
             )}
             {details && <GoogleReviewsBlock details={details} />}
             {grounded && <GroundedBlock grounded={grounded} />}
-            <CommunityBlock reviews={community?.reviews ?? []} tags={community?.tags ?? []} />
+            <CommunityBlock
+              reviews={community?.reviews ?? []}
+              tags={community?.tags ?? []}
+              onSaveReview={handleSaveReview}
+              onDeleteReview={handleDeleteReview}
+              onAddTag={handleAddTag}
+            />
           </>
         )}
       </ScrollView>
