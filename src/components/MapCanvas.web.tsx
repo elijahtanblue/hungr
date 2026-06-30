@@ -17,12 +17,13 @@ const pinBg: Record<PlaceState, string> = {
 type Region = { latitude: number; longitude: number; latitudeDelta: number; longitudeDelta: number };
 
 export function MapCanvas({
-  region, places, onSelect, onRegionChange,
+  region, places, onSelect, onRegionChange, selectedId,
 }: {
   region: Region;
   places: Place[];
   onSelect: (p: Place) => void;
   onRegionChange?: (region: Region) => void;
+  selectedId?: string;
 }) {
   const apiKey = getMapsSdkKey("web");
   // Without a real Maps JavaScript key the Google map renders a blank gray tile with only a
@@ -60,7 +61,7 @@ export function MapCanvas({
           {places.map((p) => (
             <AdvancedMarker key={p.placeId} position={{ lat: p.lat, lng: p.lng }} onClick={() => onSelect(p)}>
               <Pin
-                background={p.state ? pinBg[p.state] : colors.accent}
+                background={p.state ? pinBg[p.state] : p.placeId === selectedId ? colors.accentPress : colors.accent}
                 borderColor={colors.ink}
                 glyphColor={colors.onAccent}
               />

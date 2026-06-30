@@ -10,12 +10,13 @@ import { CuisineFilter } from "../../src/components/CuisineFilter";
 import { PlaceSheet } from "../../src/components/PlaceSheet";
 import { PreferencesSheet } from "../../src/components/PreferencesSheet";
 import { FindFoodPopup } from "../../src/components/FindFoodPopup";
+import { PlacesListSheet } from "../../src/components/PlacesListSheet";
 import { searchNearby, withFirstPartyCuisines, applyFilters } from "../../src/api/places";
 import { loadSuppressedCuisines } from "../../src/api/preferences";
 import { setUserPlaceState } from "../../src/api/userPlaces";
 import { useFilters } from "../../src/store/useFilters";
 import { useDebouncedValue } from "../../src/hooks/useDebouncedValue";
-import { CUISINES } from "../../src/domain/cuisines";
+import { CUISINE_GROUPS } from "../../src/domain/cuisines";
 import { colors, space } from "../../src/theme";
 import type { Place, PlaceState } from "../../src/domain/types";
 
@@ -27,6 +28,7 @@ export default function Map() {
   const [selected, setSelected] = useState<Place | null>(null);
   const [showPrefs, setShowPrefs] = useState(false);
   const [showFind, setShowFind] = useState(false);
+  const [showList, setShowList] = useState(false);
   const [refresh, setRefresh] = useState(0);
   const { selected: sel, suppressed, setSuppressed } = useFilters();
 
@@ -81,6 +83,7 @@ export default function Map() {
       <MapCanvas
         region={region}
         places={visible}
+        selectedId={selected?.placeId}
         onSelect={(p) => { setShowFind(false); setSelected(p); }}
         onRegionChange={(r) =>
           setRegion((prev) => {
@@ -106,8 +109,8 @@ export default function Map() {
           onOpenDetail={(placeId) => router.push({ pathname: "/place/[placeId]", params: { placeId } })}
         />
       )}
-      {showPrefs && <PreferencesSheet cuisines={CUISINES} onClose={() => setShowPrefs(false)} />}
-      {!selected && !showPrefs && !showFind && (
+      {showPrefs && <PreferencesSheet groups={CUISINE_GROUPS} onClose={() => setShowPrefs(false)} />}
+      {!selected && !showPrefs && !showFind && !showList && (
         <Pressable
           style={s.findBtn}
           onPress={() => { setSelected(null); setRefresh((n) => n + 1); setShowFind(true); }}
@@ -117,7 +120,20 @@ export default function Map() {
           <Text style={s.findTxt}>Find food near me</Text>
         </Pressable>
       )}
-      {!selected && showFind && <FindFoodPopup count={visible.length} onClose={() => setShowFind(false)} />}
+      {!selected && showFind && (
+        <FindFoodPopup
+          count={visible.length}
+          onShowList={() => { setShowFind(false); setShowList(true); }}
+          onClose={() => setShowFind(false)}
+        />
+      )}
+      {showList && (
+        <PlacesListSheet
+          places={visible}
+          onSelect={(p) => { setShowList(false); setSelected(p); }}
+          onClose={() => setShowList(false)}
+        />
+      )}
     </View>
   );
 }

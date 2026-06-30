@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { View, Text, Pressable, ScrollView, StyleSheet } from "react-native";
 import { colors, radius, space } from "../theme";
 import { useFilters } from "../store/useFilters";
@@ -5,7 +6,9 @@ import { saveSuppressedCuisines } from "../api/preferences";
 
 // State 3 from DESIGN.md: a bottom sheet to set taste. Prioritise (golden) floats results to
 // the top, Avoid (clay) hides them on the map. The avoid list persists to the user's profile.
-export function PreferencesSheet({ cuisines, onClose }: { cuisines: string[]; onClose: () => void }) {
+// The list is split into Cuisine / Food groups via a toggle so the long list is browsable.
+export function PreferencesSheet({ groups, onClose }: { groups: { label: string; items: string[] }[]; onClose: () => void }) {
+  const [tab, setTab] = useState(0);
   const selected = useFilters((s) => s.selected);
   const suppressed = useFilters((s) => s.suppressed);
   const setPreference = useFilters((s) => s.setPreference);
@@ -15,6 +18,8 @@ export function PreferencesSheet({ cuisines, onClose }: { cuisines: string[]; on
     // Persist the avoid list from the freshly updated store state.
     saveSuppressedCuisines(useFilters.getState().suppressed).catch(() => {});
   }
+
+  const items = groups[tab]?.items ?? [];
 
   return (
     <View style={s.backdrop}>
@@ -28,8 +33,21 @@ export function PreferencesSheet({ cuisines, onClose }: { cuisines: string[]; on
           </Pressable>
         </View>
         <Text style={s.help}>Prioritise what you love. Avoid what you never want to see.</Text>
-        <ScrollView style={s.list} showsVerticalScrollIndicator={false}>
-          {cuisines.map((c) => {
+        <View style={s.tabs}>
+          {groups.map((g, i) => (
+            <Pressable
+              key={g.label}
+              onPress={() => setTab(i)}
+              style={[s.tab, i === tab && s.tabOn]}
+              accessibilityRole="button"
+              accessibilityState={{ selected: i === tab }}
+            >
+              <Text style={[s.tabTxt, i === tab && s.tabOnTxt]}>{g.label}</Text>
+            </Pressable>
+          ))}
+        </View>
+        <ScrollView style={s.list} showsVerticalScrollIndicator>
+          {items.map((c) => {
             const isP = selected.includes(c);
             const isA = suppressed.includes(c);
             return (
@@ -60,7 +78,12 @@ const s = StyleSheet.create({
   title: { fontSize: 20, fontWeight: "800", color: colors.ink },
   done: { fontSize: 16, fontWeight: "700", color: colors.accentPress },
   help: { fontSize: 14, color: colors.muted, marginTop: 2, marginBottom: space.md },
-  list: { maxHeight: 360 },
+  tabs: { flexDirection: "row", gap: space.xs, backgroundColor: colors.canvas, borderRadius: radius.pill, padding: 4, marginBottom: space.sm },
+  tab: { flex: 1, alignItems: "center", paddingVertical: space.sm, borderRadius: radius.pill },
+  tabOn: { backgroundColor: colors.surface, borderColor: colors.hair, borderWidth: 1 },
+  tabTxt: { fontSize: 14, fontWeight: "700", color: colors.muted },
+  tabOnTxt: { color: colors.ink },
+  list: { maxHeight: 340 },
   row: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: space.sm, borderBottomColor: colors.hair, borderBottomWidth: 1 },
   name: { fontSize: 16, fontWeight: "600", color: colors.ink },
   actions: { flexDirection: "row", gap: space.sm },

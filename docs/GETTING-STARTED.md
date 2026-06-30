@@ -472,6 +472,11 @@ Run these from inside the `hungr` folder. Start Docker first for anything backen
 | Run the app's tests | `npm test` |
 | Run the database security tests | `npx supabase status` then `deno test --allow-net --allow-env supabase/tests/rls.test.ts` |
 | Stop the local backend | `npx supabase stop` |
+| Google Bridge|    npx supabase functions deploy places-proxy
+   npx supabase functions deploy place-details
+   npx supabase functions deploy grounding
+|Linking database and push| npx supabase link --project-ref <your project ref>
+   npx supabase db push
 
 ---
 

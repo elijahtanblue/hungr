@@ -8,22 +8,24 @@ import type { Place } from "../domain/types";
 type Region = { latitude: number; longitude: number; latitudeDelta: number; longitudeDelta: number };
 
 export function MapCanvas({
-  region, places, onSelect, onRegionChange,
+  region, places, onSelect, onRegionChange, selectedId,
 }: {
   region: Region;
   places: Place[];
   onSelect: (p: Place) => void;
   onRegionChange?: (region: Region) => void;
+  selectedId?: string;
 }) {
   // Custom view markers re-snapshot on every frame unless frozen, which is the main source
-  // of map lag. We let them render for a beat (so the vector icon rasterises crisply, not
-  // blurry) then freeze them. Re-armed whenever the result set changes.
+  // of map lag. We let them render for a beat (so they rasterise crisply, not blurry) then
+  // freeze them. Re-armed whenever the result set or the selected pin changes (so the
+  // selected pin can redraw in its darker/larger state before freezing again).
   const [tracks, setTracks] = useState(true);
   useEffect(() => {
     setTracks(true);
     const t = setTimeout(() => setTracks(false), 700);
     return () => clearTimeout(t);
-  }, [places]);
+  }, [places, selectedId]);
 
   return (
     <MapView
@@ -48,7 +50,7 @@ export function MapCanvas({
           onPress={() => onSelect(p)}
           tracksViewChanges={tracks}
         >
-          <PlacePin state={p.state} />
+          <PlacePin state={p.state} rating={p.rating} selected={p.placeId === selectedId} />
         </Marker>
       ))}
     </MapView>

@@ -13,7 +13,7 @@ beforeEach(() => {
 });
 
 test("tapping Avoid adds the cuisine to the avoid list and persists it", async () => {
-  await render(<PreferencesSheet cuisines={["Thai", "Chinese"]} onClose={() => {}} />);
+  await render(<PreferencesSheet groups={[{ label: "Cuisine", items: ["Thai", "Chinese"] }]} onClose={() => {}} />);
   await fireEvent.press(screen.getAllByText("Avoid")[0]); // first row is Thai
   expect(useFilters.getState().suppressed).toContain("Thai");
   expect(saveSuppressedCuisines).toHaveBeenCalledWith(["Thai"]);
@@ -21,7 +21,7 @@ test("tapping Avoid adds the cuisine to the avoid list and persists it", async (
 
 test("Prioritise and Avoid are mutually exclusive in the sheet", async () => {
   useFilters.setState({ selected: [], suppressed: ["Thai"] });
-  await render(<PreferencesSheet cuisines={["Thai"]} onClose={() => {}} />);
+  await render(<PreferencesSheet groups={[{ label: "Cuisine", items: ["Thai"] }]} onClose={() => {}} />);
   await fireEvent.press(screen.getByText("Prioritise"));
   expect(useFilters.getState().selected).toContain("Thai");
   expect(useFilters.getState().suppressed).not.toContain("Thai");
@@ -30,7 +30,7 @@ test("Prioritise and Avoid are mutually exclusive in the sheet", async () => {
 test("preference persistence handles rejected saves", async () => {
   const catchSpy = jest.fn();
   (saveSuppressedCuisines as jest.Mock).mockReturnValueOnce({ catch: catchSpy });
-  await render(<PreferencesSheet cuisines={["Thai"]} onClose={() => {}} />);
+  await render(<PreferencesSheet groups={[{ label: "Cuisine", items: ["Thai"] }]} onClose={() => {}} />);
   await fireEvent.press(screen.getByText("Avoid"));
   expect(catchSpy).toHaveBeenCalled();
 });

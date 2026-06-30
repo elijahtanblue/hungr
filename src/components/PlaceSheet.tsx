@@ -1,4 +1,5 @@
 import { View, Text, Pressable, StyleSheet } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { colors, radius, space } from "../theme";
 import type { Place, PlaceState } from "../domain/types";
 
@@ -13,10 +14,17 @@ export function PlaceSheet({
     <View style={s.sheet}>
       <View style={s.grab} />
       <View style={s.row}>
-        <Text style={s.name}>{place.name}</Text>
-        {place.rating !== undefined && <Text style={s.rate}>{"★"} {place.rating}</Text>}
+        <View style={s.headText}>
+          <Text style={s.name}>{place.name}</Text>
+          {place.cuisines.length > 0 && <Text style={s.meta}>{place.cuisines.join(" · ")}</Text>}
+        </View>
+        {place.rating !== undefined && (
+          <View style={s.rate}>
+            <Ionicons name="star" size={18} color={colors.accentPress} />
+            <Text style={s.rateNum}>{place.rating}</Text>
+          </View>
+        )}
       </View>
-      <Text style={s.meta}>{place.cuisines.join(" · ")}</Text>
       <View style={s.actions}>
         <Pressable style={[s.btn, s.primary]} onPress={() => onSetState(place.placeId, "go")} accessibilityRole="button" accessibilityLabel={`Mark ${place.name} as want to go`}>
           <Text style={s.primaryTxt}>Want to go</Text>
@@ -40,9 +48,11 @@ const s = StyleSheet.create({
   sheet: { position: "absolute", left: space.sm, right: space.sm, bottom: space.sm, backgroundColor: colors.surface,
     borderColor: colors.hair, borderWidth: 1, borderRadius: radius.lg, padding: space.md },
   grab: { width: 34, height: 4, borderRadius: 99, backgroundColor: colors.hair, alignSelf: "center", marginBottom: space.sm },
-  row: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  row: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: space.md },
+  headText: { flex: 1 },
   name: { fontSize: 18, color: colors.ink, fontWeight: "700" },
-  rate: { color: colors.accentPress, fontWeight: "600" },
+  rate: { flexDirection: "row", alignItems: "center", gap: 3 },
+  rateNum: { fontSize: 26, fontWeight: "800", color: colors.accentPress },
   meta: { color: colors.muted, marginTop: 2 },
   actions: { flexDirection: "row", gap: space.sm, marginTop: space.md },
   btn: { borderColor: colors.hair, borderWidth: 1, borderRadius: radius.md, paddingVertical: space.sm, paddingHorizontal: space.md },
