@@ -30,6 +30,12 @@ function Stat({ label, value }: { label: string; value: number }) {
   );
 }
 
+function stateChipStyle(state: Exclude<PlaceState, "go">) {
+  if (state === "liked") return s.likedChip;
+  if (state === "loved") return s.lovedChip;
+  return s.dislikedChip;
+}
+
 export default function Account() {
   const insets = useSafeAreaInsets();
   const [email, setEmail] = useState<string | null>(null);
@@ -123,9 +129,9 @@ export default function Account() {
               >
                 <View style={s.reviewHead}>
                   <Text style={s.reviewPlace} numberOfLines={1}>{r.placeName}</Text>
-                  {r.rating !== null && <Text style={s.reviewRating}>{"★"} {formatRating(r.rating)}</Text>}
+                  {r.placeRating !== null && <Text style={s.reviewRating}>{"★"} {formatRating(r.placeRating)}</Text>}
                 </View>
-                {r.state && <Text style={s.reviewState}>{STATE_LABELS[r.state]}</Text>}
+                {r.state && <Text style={[s.reviewState, stateChipStyle(r.state)]}>{STATE_LABELS[r.state]}</Text>}
                 {!!r.body && <Text style={s.reviewBody} numberOfLines={3}>{r.body}</Text>}
               </Pressable>
             ))
@@ -154,7 +160,7 @@ export default function Account() {
                 >
                   <View style={s.reviewHead}>
                     <Text style={s.reviewPlace} numberOfLines={1}>{p.name}</Text>
-                    {p.rating !== null && <Text style={s.reviewRating}>{"★"} {formatRating(p.rating)}</Text>}
+                    {p.placeRating !== null && <Text style={s.reviewRating}>{"★"} {formatRating(p.placeRating)}</Text>}
                   </View>
                   {!!(p.note || p.avoidReason) && <Text style={s.reviewBody} numberOfLines={2}>{p.note || p.avoidReason}</Text>}
                 </Pressable>
@@ -199,6 +205,9 @@ const s = StyleSheet.create({
   reviewHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: space.sm },
   reviewPlace: { flex: 1, fontSize: 15, fontWeight: "700", color: colors.ink },
   reviewRating: { color: colors.accentPress, fontWeight: "800" },
-  reviewState: { alignSelf: "flex-start", color: colors.ink, backgroundColor: colors.canvas, borderColor: colors.hair, borderWidth: 1, borderRadius: radius.pill, paddingHorizontal: space.sm, paddingVertical: 3, fontSize: 12, fontWeight: "800" },
+  reviewState: { alignSelf: "flex-start", color: "#fff", backgroundColor: colors.canvas, borderColor: colors.hair, borderWidth: 1, borderRadius: radius.pill, paddingHorizontal: space.sm, paddingVertical: 3, fontSize: 12, fontWeight: "800", overflow: "hidden" },
+  likedChip: { backgroundColor: colors.been, borderColor: colors.been },
+  lovedChip: { backgroundColor: colors.loved, borderColor: colors.loved },
+  dislikedChip: { backgroundColor: colors.avoid, borderColor: colors.avoid },
   reviewBody: { fontSize: 14, color: colors.ink, lineHeight: 20 },
 });

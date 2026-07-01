@@ -79,8 +79,9 @@ test("PlaceDetail shows compact separate hungr and Google ratings with review ta
   await render(<PlaceDetail />);
 
   expect(await screen.findByText("Mel's Drive-In")).toBeTruthy();
-  expect(screen.getByText("hungr ★ 4.5 (12)")).toBeTruthy();
-  expect(screen.getByText("Google ★ 3.7 (5509)")).toBeTruthy();
+  // Ratings now appear once, in the header row (the duplicate pills above the tabs were removed).
+  expect(screen.getByText("★ hungr 4.5 (12)")).toBeTruthy();
+  expect(screen.getByText("★ 3.7 (5509)")).toBeTruthy();
   expect(screen.getByText("Great fries.")).toBeTruthy();
   expect(screen.queryByText("Jane")).toBeNull();
 

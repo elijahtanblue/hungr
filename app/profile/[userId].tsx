@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { getUserProfile, getUserReviews, type UserProfile, type UserReview } from "../../src/api/community";
 import { followUser, unfollowUser } from "../../src/api/social";
 import { formatRating } from "../../src/lib/formatRating";
+import type { PlaceState } from "../../src/domain/types";
 import { colors, radius, space } from "../../src/theme";
 
 const STATE_LABELS = { liked: "Liked", loved: "Loved", disliked: "Disliked" };
@@ -17,6 +18,12 @@ function Stat({ label, value }: { label: string; value: number }) {
       <Text style={s.statLabel}>{label}</Text>
     </View>
   );
+}
+
+function stateChipStyle(state: Exclude<PlaceState, "go">) {
+  if (state === "liked") return s.likedChip;
+  if (state === "loved") return s.lovedChip;
+  return s.dislikedChip;
 }
 
 export default function Profile() {
@@ -101,9 +108,9 @@ export default function Profile() {
                 >
                   <View style={s.reviewHead}>
                     <Text style={s.reviewPlace} numberOfLines={1}>{r.placeName}</Text>
-                    {r.rating !== null && <Text style={s.reviewRating}>{"★"} {formatRating(r.rating)}</Text>}
+                    {r.placeRating !== null && <Text style={s.reviewRating}>{"★"} {formatRating(r.placeRating)}</Text>}
                   </View>
-                  {r.state && <Text style={s.reviewState}>{STATE_LABELS[r.state]}</Text>}
+                  {r.state && <Text style={[s.reviewState, stateChipStyle(r.state)]}>{STATE_LABELS[r.state]}</Text>}
                   {!!r.body && <Text style={s.reviewBody} numberOfLines={4}>{r.body}</Text>}
                   {r.upvotes > 0 && <Text style={s.upvotes}>{"▲"} {r.upvotes}</Text>}
                 </Pressable>
@@ -142,7 +149,10 @@ const s = StyleSheet.create({
   reviewHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: space.sm },
   reviewPlace: { flex: 1, fontSize: 15, fontWeight: "700", color: colors.ink },
   reviewRating: { color: colors.accentPress, fontWeight: "800" },
-  reviewState: { alignSelf: "flex-start", color: colors.ink, backgroundColor: colors.canvas, borderColor: colors.hair, borderWidth: 1, borderRadius: radius.pill, paddingHorizontal: space.sm, paddingVertical: 3, fontSize: 12, fontWeight: "800" },
+  reviewState: { alignSelf: "flex-start", color: "#fff", backgroundColor: colors.canvas, borderColor: colors.hair, borderWidth: 1, borderRadius: radius.pill, paddingHorizontal: space.sm, paddingVertical: 3, fontSize: 12, fontWeight: "800", overflow: "hidden" },
+  likedChip: { backgroundColor: colors.been, borderColor: colors.been },
+  lovedChip: { backgroundColor: colors.loved, borderColor: colors.loved },
+  dislikedChip: { backgroundColor: colors.avoid, borderColor: colors.avoid },
   reviewBody: { fontSize: 14, color: colors.ink, lineHeight: 20 },
   upvotes: { fontSize: 12, color: colors.muted, fontWeight: "700" },
 });

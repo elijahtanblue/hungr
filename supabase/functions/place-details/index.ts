@@ -28,7 +28,9 @@ type PlaceDetails = {
   photos: string[];
   reviews: Review[];
   openNow?: boolean;
+  nextCloseTime?: string;
   weekdayDescriptions?: string[];
+  periods?: unknown;
   takeout?: boolean;
   dineIn?: boolean;
   delivery?: boolean;
@@ -54,11 +56,14 @@ export function shapePlaceDetails(raw: any): PlaceDetails {
     lat: raw.location?.latitude,
     lng: raw.location?.longitude,
     // Photo resource names only (resolved to live URLs on demand via the place-photo function).
-    // We never store the image bytes, consistent with displaying Google content live.
-    photos: (raw.photos ?? []).map((p: any) => p?.name).filter((n: any) => typeof n === "string").slice(0, 6),
+    // We never store the image bytes, consistent with displaying Google content live. Google
+    // returns up to 10 photo references for a place; surface all of them.
+    photos: (raw.photos ?? []).map((p: any) => p?.name).filter((n: any) => typeof n === "string").slice(0, 10),
     reviews,
     openNow: raw.currentOpeningHours?.openNow ?? raw.regularOpeningHours?.openNow,
+    nextCloseTime: raw.currentOpeningHours?.nextCloseTime,
     weekdayDescriptions: raw.regularOpeningHours?.weekdayDescriptions,
+    periods: raw.regularOpeningHours?.periods,
     takeout: raw.takeout,
     dineIn: raw.dineIn,
     delivery: raw.delivery,
@@ -82,7 +87,7 @@ export default async function handler(req: Request): Promise<Response> {
     headers: {
       "X-Goog-Api-Key": KEY,
       "X-Goog-FieldMask":
-        "id,displayName,rating,userRatingCount,priceLevel,formattedAddress,googleMapsUri,location,photos,reviews,primaryType,types,currentOpeningHours.openNow,regularOpeningHours.weekdayDescriptions,takeout,dineIn,delivery",
+        "id,displayName,rating,userRatingCount,priceLevel,formattedAddress,googleMapsUri,location,photos,reviews,primaryType,types,currentOpeningHours.openNow,currentOpeningHours.nextCloseTime,regularOpeningHours.weekdayDescriptions,regularOpeningHours.periods,takeout,dineIn,delivery",
     },
   });
   if (!res.ok) return new Response("Upstream error", { status: 502 });

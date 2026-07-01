@@ -23,6 +23,9 @@ jest.mock("../../src/lib/supabase", () => ({
 jest.mock("../../src/api/placeNames", () => ({
   getPlaceNames: jest.fn().mockResolvedValue({ p1: "Mr Wong" }),
 }));
+jest.mock("../../src/api/placePins", () => ({
+  getPlacePins: jest.fn().mockResolvedValue({ p1: { name: "Mr Wong", rating: 4.6 } }),
+}));
 
 beforeEach(() => jest.clearAllMocks());
 
@@ -169,7 +172,7 @@ test("getUserReviews resolves place names", async () => {
     error: null,
   });
   await expect(getUserReviews("u2")).resolves.toEqual([
-    { id: "rv1", placeId: "p1", placeName: "Mr Wong", body: "Loved it", rating: 5, upvotes: 3, createdAt: "2026-06-30T00:00:00Z" },
+    { id: "rv1", placeId: "p1", placeName: "Mr Wong", body: "Loved it", rating: 5, placeRating: 4.6, upvotes: 3, createdAt: "2026-06-30T00:00:00Z" },
   ]);
 });
 

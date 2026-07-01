@@ -459,6 +459,7 @@ EAS build environment variable.
 npm install -g eas-cli      # one time
 eas login
 eas build --platform ios --profile production
+eas submit --platform ios --profile production
 ```
 This builds hungr in the cloud, then you submit it to TestFlight and invite testers by email. The
 app's id is `app.usehungr`.

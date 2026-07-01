@@ -27,6 +27,7 @@ test("GoogleReviewsBlock shows a review and always renders attribution", async (
   expect(screen.getAllByTestId("google-review-card")).toHaveLength(2);
   expect(screen.getByText("★ 5.0")).toBeTruthy();
   expect(screen.getByText("★ 4.0")).toBeTruthy();
+  expect(screen.queryByText("Translate")).toBeNull();
 });
 
 test("GoogleReviewsBlock toggles an individual Google review translation", async () => {
@@ -94,9 +95,103 @@ test("CommunityBlock attaches selected photos after the review is saved", async 
   await fireEvent.press(screen.getByText("Add photo"));
   expect(await screen.findByText("1 photo selected")).toBeTruthy();
   await fireEvent.changeText(screen.getByPlaceholderText("What should future you remember?"), "Good laksa.");
+  await fireEvent.press(screen.getByLabelText("5 stars"));
   await fireEvent.press(screen.getByText("Post review"));
 
   await waitFor(() => expect(onAttachPhotos).toHaveBeenCalledWith("r-new", [{ uri: "file:///tmp/food.jpg", fileName: "food.jpg" }]));
+});
+
+test("CommunityBlock previews selected photos before posting", async () => {
+  const onPickPhotos = jest.fn().mockResolvedValue([
+    { uri: "file:///tmp/taco.jpg", fileName: "taco.jpg" },
+    { uri: "file:///tmp/noodles.jpg", fileName: "noodles.jpg" },
+  ]);
+
+  await render(
+    <CommunityBlock
+      reviews={[]}
+      tags={[]}
+      onSaveReview={jest.fn()}
+      onPickPhotos={onPickPhotos}
+    />,
+  );
+
+  await fireEvent.press(screen.getByText("Add photo"));
+
+  expect(await screen.findByText("2 photos selected")).toBeTruthy();
+  expect(screen.getAllByTestId("selected-review-photo")).toHaveLength(2);
+  expect(screen.getByLabelText("Selected photo 1")).toBeTruthy();
+  expect(screen.getByLabelText("Selected photo 2")).toBeTruthy();
+});
+
+test("CommunityBlock rejects unsupported selected photo formats before posting", async () => {
+  const onPickPhotos = jest.fn().mockResolvedValue([
+    { uri: "file:///tmp/IMG_0001.HEIC", fileName: "IMG_0001.HEIC", mimeType: "image/heic" },
+  ]);
+
+  await render(
+    <CommunityBlock
+      reviews={[]}
+      tags={[]}
+      onSaveReview={jest.fn()}
+      onPickPhotos={onPickPhotos}
+    />,
+  );
+
+  await fireEvent.press(screen.getByText("Add photo"));
+
+  expect(await screen.findByText("Choose a JPG, PNG, or WebP photo.")).toBeTruthy();
+  expect(screen.queryByText("1 photo selected")).toBeNull();
+  expect(screen.queryAllByTestId("selected-review-photo")).toHaveLength(0);
+});
+
+test("CommunityBlock does not show save failure or keep draft after only photo attach fails", async () => {
+  const onSaveReview = jest.fn().mockResolvedValue("r-new");
+  const onPickPhotos = jest.fn().mockResolvedValue([{ uri: "file:///tmp/food.jpg", fileName: "food.jpg" }]);
+  const onAttachPhotos = jest.fn().mockRejectedValue(new Error("storage duplicate"));
+
+  await render(
+    <CommunityBlock
+      reviews={[]}
+      tags={[]}
+      onSaveReview={onSaveReview}
+      onPickPhotos={onPickPhotos}
+      onAttachPhotos={onAttachPhotos}
+    />,
+  );
+
+  await fireEvent.press(screen.getByText("Add photo"));
+  await fireEvent.changeText(screen.getByPlaceholderText("What should future you remember?"), "Good laksa.");
+  await fireEvent.press(screen.getByLabelText("5 stars"));
+  await fireEvent.press(screen.getByText("Post review"));
+
+  expect(await screen.findByText("Review posted, but the photos could not be attached.")).toBeTruthy();
+  expect(screen.queryByText("Could not save review. Try again.")).toBeNull();
+  expect(screen.queryByDisplayValue("Good laksa.")).toBeNull();
+});
+
+test("CommunityBlock shows the specific photo attach failure reason when available", async () => {
+  const onSaveReview = jest.fn().mockResolvedValue("r-new");
+  const onPickPhotos = jest.fn().mockResolvedValue([{ uri: "file:///tmp/food.jpg", fileName: "food.jpg", mimeType: "image/jpeg" }]);
+  const onAttachPhotos = jest.fn().mockRejectedValue(new Error("Vision SafeSearch failed. Check GOOGLE_VISION_KEY."));
+
+  await render(
+    <CommunityBlock
+      reviews={[]}
+      tags={[]}
+      onSaveReview={onSaveReview}
+      onPickPhotos={onPickPhotos}
+      onAttachPhotos={onAttachPhotos}
+    />,
+  );
+
+  await fireEvent.press(screen.getByText("Add photo"));
+  await fireEvent.changeText(screen.getByPlaceholderText("What should future you remember?"), "Good laksa.");
+  await fireEvent.press(screen.getByLabelText("5 stars"));
+  await fireEvent.press(screen.getByText("Post review"));
+
+  expect(await screen.findByText("Vision SafeSearch failed. Check GOOGLE_VISION_KEY.")).toBeTruthy();
+  expect(screen.queryByText("Could not save review. Try again.")).toBeNull();
 });
 
 test("CommunityBlock exposes search, sort, filters, and load more controls for hungr reviews", async () => {
@@ -199,12 +294,29 @@ test("CommunityBlock lets a user add a simple community tag", async () => {
   await waitFor(() => expect(onAddTag).toHaveBeenCalledWith("new management"));
 });
 
+test("CommunityBlock will not post a review without a rating", async () => {
+  const onSaveReview = jest.fn().mockResolvedValue("r-new");
+
+  await render(<CommunityBlock reviews={[]} tags={[]} onSaveReview={onSaveReview} />);
+
+  await fireEvent.changeText(screen.getByPlaceholderText("What should future you remember?"), "No stars yet.");
+  // The hint appears and pressing Post does nothing until a rating is chosen.
+  expect(screen.getByText("Add a star rating to post your review.")).toBeTruthy();
+  await fireEvent.press(screen.getByText("Post review"));
+  expect(onSaveReview).not.toHaveBeenCalled();
+
+  await fireEvent.press(screen.getByLabelText("4 stars"));
+  await fireEvent.press(screen.getByText("Post review"));
+  await waitFor(() => expect(onSaveReview).toHaveBeenCalledWith({ id: undefined, body: "No stars yet.", rating: 4 }));
+});
+
 test("CommunityBlock keeps the draft visible when a review save fails", async () => {
   const onSaveReview = jest.fn().mockRejectedValue(new Error("network down"));
 
   await render(<CommunityBlock reviews={[]} tags={[]} onSaveReview={onSaveReview} />);
 
   await fireEvent.changeText(screen.getByPlaceholderText("What should future you remember?"), "Do not lose this.");
+  await fireEvent.press(screen.getByLabelText("5 stars"));
   await fireEvent.press(screen.getByText("Post review"));
 
   expect(await screen.findByText("Could not save review. Try again.")).toBeTruthy();

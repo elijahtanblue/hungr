@@ -1,5 +1,6 @@
 import { supabase } from "../lib/supabase";
 import { isSuppressed } from "../domain/suppression";
+import { dietaryTagsFromName } from "../domain/dietaryTags";
 import type { Place, PlaceState, PriceLevel } from "../domain/types";
 import type { SortBy, ShowState } from "../store/useFilters";
 
@@ -81,15 +82,20 @@ function shapeProxyPlace(p: any, originLat: number, originLng: number): Place | 
   if (typeof p.placeId !== "string" || typeof p.name !== "string" || !Number.isFinite(p.lat) || !Number.isFinite(p.lng)) {
     return null;
   }
+  // Name-based dietary flags are first-party (derived from the place name, never Google reviews).
+  const dietaryTags = dietaryTagsFromName(p.name);
   return {
     placeId: p.placeId,
     name: p.name,
     lat: p.lat,
     lng: p.lng,
     rating: p.rating,
+    userRatingCount: typeof p.userRatingCount === "number" ? p.userRatingCount : undefined,
     priceLevel: isPriceLevel(p.priceLevel) ? p.priceLevel : undefined,
+    photoName: typeof p.photoName === "string" ? p.photoName : undefined,
     distanceMeters: distanceMeters(originLat, originLng, p.lat, p.lng),
     cuisines: p.cuisines ?? [],
+    ...(dietaryTags.length > 0 ? { dietaryTags } : {}),
     state: isPlaceState(p.state) ? p.state : undefined,
   };
 }
@@ -103,6 +109,7 @@ export function mergePlaces(existing: Place[], incoming: Place[]): Place[] {
       ...previous,
       ...place,
       state: place.state ?? previous?.state,
+      photoName: place.photoName ?? previous?.photoName,
     });
   }
   return Array.from(byId.values());
@@ -132,6 +139,30 @@ export async function searchNearby(lat: number, lng: number, query: string, opti
     if (!pageToken) break;
   }
   return places;
+}
+
+// One page of results plus the token for the next page, so the list can lazily load more as the
+// user scrolls (endless results) without slowing the first paint.
+export async function searchNearbyPage(
+  lat: number,
+  lng: number,
+  query: string,
+  options: { radiusMeters?: number; openNow?: boolean; pageToken?: string } = {},
+): Promise<{ places: Place[]; nextPageToken?: string }> {
+  const body = {
+    lat,
+    lng,
+    query,
+    ...(options.radiusMeters ? { radiusMeters: options.radiusMeters } : {}),
+    ...(options.openNow ? { openNow: true } : {}),
+    ...(options.pageToken ? { pageToken: options.pageToken } : {}),
+  };
+  const { data, error } = await supabase.functions.invoke("places-proxy", { body });
+  if (error) throw error;
+  if (!data || !Array.isArray(data.places)) throw new Error("Invalid places response");
+  const places = data.places.map((p: any) => shapeProxyPlace(p, lat, lng)).filter(Boolean) as Place[];
+  const nextPageToken = typeof data.nextPageToken === "string" && data.nextPageToken ? data.nextPageToken : undefined;
+  return { places, nextPageToken };
 }
 
 // Union our first party place_cuisines tags onto the coarse Google cuisines.

@@ -52,7 +52,9 @@ Australia, and whether Google's `reviewSummary` field supports AU yet (appears N
 **Pros:** Confirms the bootstrap feature is actually available where you'll launch.
 **Cons:** Quick research/spike.
 **Context:** Google review summaries docs listed UK/US/India/LatAm/Japan, not Australia.
-Grounding-with-Maps is GA but verify AU + pricing tier.
+Grounding-with-Maps is GA but verify AU + pricing tier. Note: Intent Search (item 7) uses AI
+as a thin parser only and does NOT use Grounding, so this blocker no longer gates that feature.
+It still gates the reviewSummary bootstrap.
 **Depends on / blocked by:** Nothing, do before building the Grounding feature.
 
 ## 5. V3 cuisine + venue inference (research)
@@ -90,3 +92,35 @@ carry it. Use EU cloud if launching into GDPR markets. Wire it once there is rea
 measure, not before. Beginner setup steps captured in docs/GETTING-STARTED.md (section 8g).
 **Depends on / blocked by:** Real users (Milestone B shipped); ideally after item 2 legal review
 confirms the consent model.
+
+## 7. Intent Search (occasion + natural-language search)
+**What:** Turn a person's intent ("date night", "somewhere exotic to impress a date near the
+water where we can talk") into ranked results. AI is a thin parser (natural language to a
+structured query, plus a one-line reason per result); a deterministic rule engine does all
+retrieval, filtering, and ranking against Google plus first-party data. Named occasions run the
+same engine from a static preset table with no AI in the path.
+**Why:** High-intent discovery ("plan my evening") that Google's flat search does not serve, and
+it leans on the rule engine and first-party data rather than a model over Google content.
+**Pros:** Cheap (~0.002 USD/query, mostly cached), no Grounding so no AU blocker, deterministic
+core is fully testable, facts never come from AI.
+**Cons:** Rule tuning (queryHint wording, thresholds, type lists) is empirical and must be
+validated against the launch city; two new edge functions plus a new facts table.
+**Context:** Full design in docs/superpowers/specs/2026-07-01-intent-search-design.md. Phase 1
+is the rule engine, occasion presets, first_party_facts table, and UI (no AI). Phase 2 adds the
+intent-parse and intent-reasons functions and the free-text box.
+**Depends on / blocked by:** Phase 2 review-mining ideas are blocked by item 2 (legal).
+
+## 8. Menu enrichment pipeline (own project)
+**What:** Populate first_party_facts (price_band, dietary_flags) by extracting from restaurant
+menus and websites. Handles HTML, PDFs, images needing OCR, and third-party ordering widgets.
+Do-once-per-place, store the result; not per-query.
+**Why:** Google lacks per-person price and precise dietary ("vegan-friendly" so a vegan can dine
+with non-vegan friends). Menus have both, and derived facts are first-party data we may store.
+**Pros:** Fills the two biggest data gaps in Intent Search; amortized cost (write once).
+**Cons:** Large, fragile subsystem (heterogeneous menus, OCR, sites break); realistic clean
+coverage is only 30 to 50 percent of places; third-party sites have their own ToS and robots
+rules.
+**Context:** Intent Search (item 7) builds the first_party_facts consumer interface now, seeded
+with free wins (name-based dietary flags, curated Michelin and hat prices). This item is the
+separate pipeline that fills the rest. Needs its own brainstorm to spec cycle.
+**Depends on / blocked by:** Item 7 Phase 1 (the facts table and consumer) shipped first.

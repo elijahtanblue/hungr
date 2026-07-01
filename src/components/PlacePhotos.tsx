@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Image, ScrollView, Text, StyleSheet } from "react-native";
-import { getPhotoUri } from "../api/placePhotos";
+import { prefetchPhotoUri } from "../api/placePhotos";
 import type { ReviewPhoto } from "../api/community";
 import { colors, radius, space } from "../theme";
 
@@ -8,17 +8,28 @@ import { colors, radius, space } from "../theme";
 // Google entries are still fetched live via resource name; hungr entries are signed URLs.
 export function PlacePhotos({ names, reviewPhotos = [] }: { names: string[]; reviewPhotos?: ReviewPhoto[] }) {
   const [uris, setUris] = useState<string[]>([]);
+  const namesKey = names.join("|");
 
   useEffect(() => {
     let active = true;
-    Promise.all(names.slice(0, 6).map((n) => getPhotoUri(n).catch(() => null)))
-      .then((res) => { if (active) setUris(res.filter((u): u is string => !!u)); });
+    setUris([]);
+    // Resolve every photo Google returned for the place (up to its ~10 max), not just the first few.
+    names.forEach((name, index) => {
+      prefetchPhotoUri(name).then((uri) => {
+        if (!active || !uri) return;
+        setUris((current) => {
+          const next = [...current];
+          next[index] = uri;
+          return next;
+        });
+      }).catch(() => {});
+    });
     return () => { active = false; };
-  }, [names]);
+  }, [namesKey]);
 
   const combined = [
     ...reviewPhotos.map((photo) => ({ key: `hungr-${photo.id}`, uri: photo.uri })),
-    ...uris.map((uri, i) => ({ key: `google-${i}`, uri })),
+    ...uris.map((uri, i) => ({ key: `google-${i}`, uri })).filter((photo) => !!photo.uri),
   ];
 
   if (combined.length === 0) return null;

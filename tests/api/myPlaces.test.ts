@@ -1,9 +1,9 @@
 import { getMyPlaces } from "../../src/api/myPlaces";
-import { getPlaceNames } from "../../src/api/placeNames";
+import { getPlacePins } from "../../src/api/placePins";
 import { supabase } from "../../src/lib/supabase";
 
-jest.mock("../../src/api/placeNames", () => ({
-  getPlaceNames: jest.fn(),
+jest.mock("../../src/api/placePins", () => ({
+  getPlacePins: jest.fn(),
 }));
 
 jest.mock("../../src/lib/supabase", () => ({
@@ -28,14 +28,19 @@ test("getMyPlaces returns grouped saved places with live names", async () => {
   const eq = jest.fn().mockReturnValue({ order });
   const select = jest.fn().mockReturnValue({ eq });
   (supabase.from as jest.Mock).mockReturnValue({ select });
-  (getPlaceNames as jest.Mock).mockResolvedValue({ p1: "Mr Wong", p2: "Gumshara", p3: "Pricey Place" });
+  (getPlacePins as jest.Mock).mockResolvedValue({
+    p1: { name: "Mr Wong", rating: 4.6 },
+    p2: { name: "Gumshara", rating: 4.2 },
+    p3: { name: "Pricey Place", rating: 3.8 },
+  });
 
   await expect(getMyPlaces()).resolves.toEqual({
-    go: [{ placeId: "p1", name: "Mr Wong", state: "go", updatedAt: "2026-06-30T02:00:00Z", rating: null, note: null, avoidReason: null }],
-    liked: [{ placeId: "p2", name: "Gumshara", state: "liked", updatedAt: "2026-06-30T01:00:00Z", rating: 5, note: "Great", avoidReason: null }],
+    go: [{ placeId: "p1", name: "Mr Wong", state: "go", updatedAt: "2026-06-30T02:00:00Z", placeRating: 4.6, note: null, avoidReason: null }],
+    liked: [{ placeId: "p2", name: "Gumshara", state: "liked", updatedAt: "2026-06-30T01:00:00Z", placeRating: 4.2, note: "Great", avoidReason: null }],
     loved: [],
-    disliked: [{ placeId: "p3", name: "Pricey Place", state: "disliked", updatedAt: "2026-06-29T01:00:00Z", rating: null, note: null, avoidReason: "Too expensive" }],
+    disliked: [{ placeId: "p3", name: "Pricey Place", state: "disliked", updatedAt: "2026-06-29T01:00:00Z", placeRating: 3.8, note: null, avoidReason: "Too expensive" }],
   });
+  expect(select).toHaveBeenCalledWith("place_id, state, updated_at, note, avoid_reason");
   expect(eq).toHaveBeenCalledWith("user_id", "u1");
   expect(order).toHaveBeenCalledWith("updated_at", { ascending: false });
 });

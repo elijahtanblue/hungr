@@ -64,13 +64,36 @@ test("applyFilters hides places below the minimum rating", () => {
 
 test("searchNearby carries the coarse cuisine returned by the proxy", async () => {
   (supabase.functions.invoke as jest.Mock).mockResolvedValue({
-    data: { places: [{ placeId: "x", name: "X", lat: 1.01, lng: 2.01, rating: 4.5, priceLevel: "PRICE_LEVEL_MODERATE", cuisines: ["Thai"] }] },
+    data: { places: [{ placeId: "x", name: "X", lat: 1.01, lng: 2.01, rating: 4.5, priceLevel: "PRICE_LEVEL_MODERATE", cuisines: ["Thai"], photoName: "places/x/photos/abc" }] },
     error: null,
   });
   const out = await searchNearby(1, 2, "food");
   expect(out[0].cuisines).toEqual(["Thai"]);
   expect(out[0].priceLevel).toBe("PRICE_LEVEL_MODERATE");
+  expect(out[0].photoName).toBe("places/x/photos/abc");
   expect(out[0].distanceMeters).toBeGreaterThan(0);
+});
+
+test("searchNearby carries userRatingCount from the proxy", async () => {
+  (supabase.functions.invoke as jest.Mock).mockResolvedValue({
+    data: { places: [{ placeId: "x", name: "X", lat: 1.01, lng: 2.01, rating: 4.5, userRatingCount: 320, cuisines: ["Thai"] }] },
+    error: null,
+  });
+  const out = await searchNearby(1, 2, "food");
+  expect(out[0].userRatingCount).toBe(320);
+});
+
+test("searchNearby derives first-party dietary tags from the place name", async () => {
+  (supabase.functions.invoke as jest.Mock).mockResolvedValue({
+    data: { places: [
+      { placeId: "veg", name: "Gigi's Vegetarian", lat: 1.01, lng: 2.01, cuisines: ["Italian"] },
+      { placeId: "steak", name: "Joe's Steakhouse", lat: 1.02, lng: 2.02, cuisines: ["Steakhouse"] },
+    ] },
+    error: null,
+  });
+  const out = await searchNearby(1, 2, "food");
+  expect(out.find((p) => p.placeId === "veg")!.dietaryTags).toEqual(["vegetarian"]);
+  expect(out.find((p) => p.placeId === "steak")!.dietaryTags).toBeUndefined();
 });
 
 test("searchNearby forwards a selected search radius to the proxy", async () => {
@@ -103,6 +126,22 @@ test("searchNearby fetches a single page for a fast first paint", async () => {
     body: { lat: 1, lng: 2, query: "food" },
   });
   expect(out.map((p) => p.placeId)).toEqual(["a", "b"]);
+});
+
+test("searchNearbyPage returns one page plus the token to load the next", async () => {
+  (supabase.functions.invoke as jest.Mock).mockResolvedValue({
+    data: { places: [{ placeId: "a", name: "A", lat: 1, lng: 2, cuisines: ["Thai"] }], nextPageToken: "next-1" },
+    error: null,
+  });
+
+  const { searchNearbyPage } = require("../../src/api/places");
+  const out = await searchNearbyPage(1, 2, "food", { openNow: true, pageToken: "tok" });
+
+  expect(supabase.functions.invoke).toHaveBeenCalledWith("places-proxy", {
+    body: { lat: 1, lng: 2, query: "food", openNow: true, pageToken: "tok" },
+  });
+  expect(out.places.map((p: any) => p.placeId)).toEqual(["a"]);
+  expect(out.nextPageToken).toBe("next-1");
 });
 
 test("mergePlaces keeps existing pins and preserves first party state", () => {

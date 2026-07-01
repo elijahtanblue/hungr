@@ -77,6 +77,7 @@ export function PreferencesSheet({ groups, onClose }: { groups: { label: string;
             <Text style={s.done}>Done</Text>
           </Pressable>
         </View>
+        <ScrollView style={s.body} showsVerticalScrollIndicator keyboardShouldPersistTaps="handled" contentContainerStyle={s.bodyContent}>
         <Text style={s.help}>Prioritise what you love. Skip what you're not in the mood for.</Text>
         <View style={s.filterGrid}>
           <View style={s.filterCell}>
@@ -179,7 +180,7 @@ export function PreferencesSheet({ groups, onClose }: { groups: { label: string;
             </Pressable>
           ))}
         </View>
-        <ScrollView style={s.list} showsVerticalScrollIndicator>
+        <View style={s.list}>
           {items.map((c) => {
             const isP = selected.includes(c);
             const isA = suppressed.includes(c);
@@ -197,6 +198,7 @@ export function PreferencesSheet({ groups, onClose }: { groups: { label: string;
               </View>
             );
           })}
+        </View>
         </ScrollView>
       </View>
     </View>
@@ -205,7 +207,9 @@ export function PreferencesSheet({ groups, onClose }: { groups: { label: string;
 
 const s = StyleSheet.create({
   backdrop: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0, justifyContent: "flex-end", backgroundColor: "rgba(28,26,23,0.25)" },
-  sheet: { backgroundColor: colors.surface, borderTopLeftRadius: radius.lg, borderTopRightRadius: radius.lg, padding: space.lg, paddingBottom: space.xl },
+  sheet: { backgroundColor: colors.surface, borderTopLeftRadius: radius.lg, borderTopRightRadius: radius.lg, padding: space.lg, paddingBottom: space.xl, maxHeight: "90%" },
+  body: { flexShrink: 1 },
+  bodyContent: { paddingBottom: space.md },
   grab: { width: 34, height: 4, borderRadius: 99, backgroundColor: colors.hair, alignSelf: "center", marginBottom: space.md },
   header: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   title: { fontSize: 20, fontWeight: "800", color: colors.ink },
@@ -232,7 +236,7 @@ const s = StyleSheet.create({
   tabOn: { backgroundColor: colors.surface, borderColor: colors.hair, borderWidth: 1 },
   tabTxt: { fontSize: 14, fontWeight: "700", color: colors.muted },
   tabOnTxt: { color: colors.ink },
-  list: { maxHeight: 340 },
+  list: {},
   row: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: space.sm, borderBottomColor: colors.hair, borderBottomWidth: 1 },
   name: { fontSize: 16, fontWeight: "600", color: colors.ink },
   actions: { flexDirection: "row", gap: space.sm },

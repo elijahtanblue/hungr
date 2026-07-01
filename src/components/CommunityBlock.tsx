@@ -4,6 +4,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { colors, radius, space } from "../theme";
 import type { CommunityPageOptions, CommunityReview, ReviewDraft, ReviewPhoto, ReviewSort } from "../api/community";
 import type { LocalReviewPhotoAsset } from "../api/reviewPhotos";
+import { UNSUPPORTED_REVIEW_PHOTO_MESSAGE, reviewPhotoFormatError } from "../domain/reviewPhotoFormats";
 import { StarRatingInput } from "./StarRatingInput";
 import { formatRating } from "../lib/formatRating";
 
@@ -21,6 +22,23 @@ function formatDate(iso: string): string {
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return "";
   return `${MONTHS[date.getUTCMonth()]} ${date.getUTCDate()}, ${date.getUTCFullYear()}`;
+}
+
+function errorMessage(error: unknown, fallback: string): string {
+  return error instanceof Error && error.message.trim() ? error.message : fallback;
+}
+
+function photoAttachErrorMessage(error: unknown): string {
+  const message = errorMessage(error, "Review posted, but the photos could not be attached.");
+  if (
+    message === UNSUPPORTED_REVIEW_PHOTO_MESSAGE
+    || message.includes("Vision")
+    || message.includes("moderation")
+    || message.includes("GOOGLE_VISION_KEY")
+  ) {
+    return message;
+  }
+  return "Review posted, but the photos could not be attached.";
 }
 
 // First party content. Golden world, the hungr moat. Kept visually separate from the Google
@@ -98,7 +116,11 @@ export function CommunityBlock({
     setError(null);
     try {
       const photos = await onPickPhotos();
-      setSelectedPhotos(photos.slice(0, 4));
+      const supported = photos.filter((photo) => !reviewPhotoFormatError(photo)).slice(0, 4);
+      setSelectedPhotos(supported);
+      if (supported.length < photos.length) {
+        setError("Choose a JPG, PNG, or WebP photo.");
+      }
     } catch {
       setError("Could not open photos. Try again.");
     }
@@ -106,27 +128,44 @@ export function CommunityBlock({
 
   async function submitReview() {
     if (!onSaveReview || saving) return;
+    // A review must carry a rating; the button is disabled without one, this guards programmatic calls.
+    if (rating == null) { setError("Add a star rating to post your review."); return; }
     setSaving(true);
     setError(null);
+    let result: string | boolean | void;
     try {
-      const result = await onSaveReview({ id: editing?.id, body, rating });
+      result = await onSaveReview({ id: editing?.id, body, rating });
       if (result === false) {
         setError("Could not save review. Try again.");
         return;
       }
-      const reviewId = typeof result === "string" ? result : editing?.id;
-      if (reviewId && selectedPhotos.length > 0 && onAttachPhotos) {
-        await onAttachPhotos(reviewId, selectedPhotos);
-      }
-      setEditing(null);
-      setBody("");
-      setRating(null);
-      setSelectedPhotos([]);
     } catch {
       setError("Could not save review. Try again.");
+      return;
     } finally {
       setSaving(false);
     }
+
+    const reviewId = typeof result === "string" ? result : editing?.id;
+    let photoAttachError: string | null = selectedPhotos.length > 0 && !reviewId
+      ? "Review posted, but the photos could not be attached."
+      : null;
+    if (reviewId && selectedPhotos.length > 0 && onAttachPhotos) {
+      setSaving(true);
+      try {
+        await onAttachPhotos(reviewId, selectedPhotos);
+      } catch (err) {
+        photoAttachError = photoAttachErrorMessage(err);
+      } finally {
+        setSaving(false);
+      }
+    }
+
+    setEditing(null);
+    setBody("");
+    setRating(null);
+    setSelectedPhotos([]);
+    if (photoAttachError) setError(photoAttachError);
   }
 
   async function submitTag() {
@@ -163,40 +202,9 @@ export function CommunityBlock({
   }
 
   return (
-    <View style={s.block}>
-      <Text style={s.heading}>hungr community</Text>
-      {filters && onFiltersChange && (
-        <View style={s.filters}>
-          <TextInput
-            style={s.searchInput}
-            placeholder="Search hungr reviews"
-            placeholderTextColor={colors.muted}
-            value={filters.search ?? ""}
-            onChangeText={(search) => updateFilters({ search })}
-          />
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.filterChips}>
-            {(["newest", "popular", "rating"] as ReviewSort[]).map((sort) => (
-              <Pressable
-                key={sort}
-                onPress={() => updateFilters({ sort })}
-                style={[s.filterChip, (filters.sort ?? "newest") === sort && s.filterChipOn]}
-                accessibilityRole="button"
-              >
-                <Text style={[s.filterChipTxt, (filters.sort ?? "newest") === sort && s.filterChipTxtOn]}>
-                  {sort === "newest" ? "Newest" : sort === "popular" ? "Popular" : "Top rated"}
-                </Text>
-              </Pressable>
-            ))}
-            <Pressable
-              onPress={() => updateFilters({ photosOnly: !filters.photosOnly })}
-              style={[s.filterChip, filters.photosOnly && s.filterChipOn]}
-              accessibilityRole="button"
-            >
-              <Text style={[s.filterChipTxt, filters.photosOnly && s.filterChipTxtOn]}>With photos</Text>
-            </Pressable>
-          </ScrollView>
-        </View>
-      )}
+    <>
+      <View style={s.block}>
+      <Text style={s.heading}>Write a review</Text>
       {tags.length > 0 && (
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.tags}>
           {tags.map((t) => (
@@ -243,6 +251,23 @@ export function CommunityBlock({
               )}
             </View>
           )}
+          {selectedPhotos.length > 0 && (
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.selectedPhotoList}>
+              {selectedPhotos.map((photo, index) => (
+                <Image
+                  key={`${photo.uri}-${index}`}
+                  source={{ uri: photo.uri }}
+                  style={s.selectedPhoto}
+                  testID="selected-review-photo"
+                  accessibilityLabel={`Selected photo ${index + 1}`}
+                  accessibilityIgnoresInvertColors
+                />
+              ))}
+            </ScrollView>
+          )}
+          {body.trim() !== "" && rating == null && (
+            <Text style={s.ratingHint}>Add a star rating to post your review.</Text>
+          )}
           <View style={s.composerActions}>
             {editing && (
               <Pressable
@@ -253,13 +278,49 @@ export function CommunityBlock({
                 <Text style={s.cancelTxt}>Cancel</Text>
               </Pressable>
             )}
-            <Pressable style={[s.post, (!body.trim() || saving) && s.disabled]} onPress={submitReview} disabled={!body.trim() || saving} accessibilityRole="button">
+            <Pressable style={[s.post, (!body.trim() || rating == null || saving) && s.disabled]} onPress={submitReview} disabled={!body.trim() || rating == null || saving} accessibilityRole="button">
               <Text style={s.postTxt}>{editing ? "Save review" : "Post review"}</Text>
             </Pressable>
           </View>
         </View>
       )}
       {error && <Text style={s.error}>{error}</Text>}
+      </View>
+
+      <View style={s.block}>
+      <Text style={s.heading}>Browse reviews</Text>
+      {filters && onFiltersChange && (
+        <View style={s.browse}>
+          <TextInput
+            style={s.searchInput}
+            placeholder="Search hungr reviews"
+            placeholderTextColor={colors.muted}
+            value={filters.search ?? ""}
+            onChangeText={(search) => updateFilters({ search })}
+          />
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.filterChips}>
+            {(["newest", "popular", "rating"] as ReviewSort[]).map((sort) => (
+              <Pressable
+                key={sort}
+                onPress={() => updateFilters({ sort })}
+                style={[s.filterChip, (filters.sort ?? "newest") === sort && s.filterChipOn]}
+                accessibilityRole="button"
+              >
+                <Text style={[s.filterChipTxt, (filters.sort ?? "newest") === sort && s.filterChipTxtOn]}>
+                  {sort === "newest" ? "Newest" : sort === "popular" ? "Popular" : "Top rated"}
+                </Text>
+              </Pressable>
+            ))}
+            <Pressable
+              onPress={() => updateFilters({ photosOnly: !filters.photosOnly })}
+              style={[s.filterChip, filters.photosOnly && s.filterChipOn]}
+              accessibilityRole="button"
+            >
+              <Text style={[s.filterChipTxt, filters.photosOnly && s.filterChipTxtOn]}>With photos</Text>
+            </Pressable>
+          </ScrollView>
+        </View>
+      )}
       {reviews.length === 0 ? (
         <Text style={s.empty}>No community reviews yet. Be the first to add one.</Text>
       ) : (
@@ -330,14 +391,15 @@ export function CommunityBlock({
           <Text style={s.loadMoreTxt}>{loadingMore ? "Loading..." : "Load more"}</Text>
         </Pressable>
       )}
-    </View>
+      </View>
+    </>
   );
 }
 
 const s = StyleSheet.create({
   block: { backgroundColor: colors.surface, borderColor: colors.hair, borderWidth: 1, borderLeftColor: colors.accent, borderLeftWidth: 3, borderRadius: radius.lg, padding: space.md, gap: space.sm },
   heading: { fontSize: 16, fontWeight: "800", color: colors.accentPress },
-  filters: { gap: space.xs },
+  browse: { gap: space.xs },
   searchInput: { minHeight: 40, borderColor: colors.hair, borderWidth: 1, borderRadius: radius.md, paddingHorizontal: space.md, color: colors.ink, backgroundColor: colors.canvas },
   filterChips: { gap: space.xs, paddingRight: space.md },
   filterChip: { minHeight: 32, justifyContent: "center", borderRadius: radius.pill, borderColor: colors.hair, borderWidth: 1, paddingHorizontal: space.md, backgroundColor: colors.surface },
@@ -357,6 +419,9 @@ const s = StyleSheet.create({
   photoPickBtn: { minHeight: 34, flexDirection: "row", alignItems: "center", gap: 5, borderColor: colors.hair, borderWidth: 1, borderRadius: radius.pill, paddingHorizontal: space.md, backgroundColor: colors.surface },
   photoPickTxt: { color: colors.accentPress, fontWeight: "800", fontSize: 13 },
   selectedPhotoTxt: { color: colors.muted, fontWeight: "700", fontSize: 12 },
+  selectedPhotoList: { gap: space.sm, paddingRight: space.md },
+  selectedPhoto: { width: 74, height: 74, borderRadius: radius.md, backgroundColor: colors.hair },
+  ratingHint: { fontSize: 12, color: colors.muted, fontWeight: "700" },
   composerActions: { flexDirection: "row", justifyContent: "flex-end", gap: space.sm },
   cancel: { minHeight: 40, justifyContent: "center", paddingHorizontal: space.md },
   cancelTxt: { color: colors.muted, fontWeight: "700" },

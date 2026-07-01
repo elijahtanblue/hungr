@@ -10,6 +10,13 @@ export type LiveReview = {
   authorPhoto?: string;
 };
 
+// Google regularOpeningHours.periods: day is 0 (Sunday) to 6 (Saturday). A 24-hour place has a
+// single period that is open with no close.
+export type OpeningPeriod = {
+  open: { day: number; hour: number; minute: number };
+  close?: { day: number; hour: number; minute: number };
+};
+
 export type PlaceDetails = {
   placeId: string;
   name: string;
@@ -23,7 +30,9 @@ export type PlaceDetails = {
   photos?: string[];
   reviews: LiveReview[];
   openNow?: boolean;
+  nextCloseTime?: string;
   weekdayDescriptions?: string[];
+  periods?: OpeningPeriod[];
   takeout?: boolean;
   dineIn?: boolean;
   delivery?: boolean;

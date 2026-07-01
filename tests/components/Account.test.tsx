@@ -1,5 +1,7 @@
 import { render, screen, fireEvent } from "@testing-library/react-native";
+import { StyleSheet } from "react-native";
 import Account from "../../app/(tabs)/account";
+import { colors } from "../../src/theme";
 
 jest.mock("expo-router", () => {
   const React = require("react");
@@ -15,10 +17,15 @@ jest.mock("../../src/api/social", () => ({
   getMyProfile: jest.fn().mockResolvedValue({ username: "elijahtanblue", sharesActivity: true }),
   getSocialCounts: jest.fn().mockResolvedValue({ followers: 3, following: 5, friends: 2 }),
 }));
-jest.mock("../../src/api/community", () => ({ getMyReviews: jest.fn().mockResolvedValue([]) }));
+jest.mock("../../src/api/community", () => ({
+  getMyReviews: jest.fn().mockResolvedValue([
+    { id: "r1", placeId: "p2", placeName: "CHEF N WOK", body: "Amazing food", rating: 5, placeRating: 4.6, state: "loved", createdAt: "2026-06-30T00:00:00Z" },
+    { id: "r2", placeId: "p3", placeName: "Roast Republic", body: "Was good", rating: 2.5, placeRating: 4.1, state: "liked", createdAt: "2026-06-29T00:00:00Z" },
+  ]),
+}));
 jest.mock("../../src/api/myPlaces", () => ({
   getMyPlaces: jest.fn().mockResolvedValue({
-    go: [{ placeId: "p1", name: "Gumshara Ramen", state: "go", updatedAt: "2026-06-30T00:00:00Z", rating: null, note: null, avoidReason: null }],
+    go: [{ placeId: "p1", name: "Gumshara Ramen", state: "go", updatedAt: "2026-06-30T00:00:00Z", placeRating: 4.4, note: null, avoidReason: null }],
     liked: [], loved: [], disliked: [],
   }),
 }));
@@ -54,4 +61,19 @@ test("toggles from reviews to saved places", async () => {
   await fireEvent.press(screen.getByText("Saved"));
 
   expect(await screen.findByText("Gumshara Ramen")).toBeTruthy();
+  expect(screen.getByText("★ 4.4")).toBeTruthy();
+});
+
+test("review cards show restaurant ratings and sentiment-colored chips", async () => {
+  await render(<Account />);
+
+  expect(await screen.findByText("CHEF N WOK")).toBeTruthy();
+  expect(screen.getByText("★ 4.6")).toBeTruthy();
+  expect(screen.getByText("★ 4.1")).toBeTruthy();
+  expect(screen.queryByText("★ 2.5")).toBeNull();
+
+  const lovedStyle = StyleSheet.flatten(screen.getByText("Loved").props.style);
+  const likedStyle = StyleSheet.flatten(screen.getByText("Liked").props.style);
+  expect(lovedStyle.backgroundColor).toBe(colors.loved);
+  expect(likedStyle.backgroundColor).toBe(colors.been);
 });

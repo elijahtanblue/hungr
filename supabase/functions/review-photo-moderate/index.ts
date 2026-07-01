@@ -53,6 +53,10 @@ async function safeSearch(imageBytes: Uint8Array): Promise<Record<string, unknow
   return data?.responses?.[0]?.safeSearchAnnotation ?? null;
 }
 
+export function moderationUnavailableReason(): string {
+  return "Photo moderation is not available. Check GOOGLE_VISION_KEY and Cloud Vision API access.";
+}
+
 export default async function handler(req: Request): Promise<Response> {
   const blocked = await guard(req, 30);
   if (blocked) return blocked;
@@ -83,7 +87,15 @@ export default async function handler(req: Request): Promise<Response> {
   const downloaded = await admin.storage.from("review-photos").download(path);
   if (downloaded.error || !downloaded.data) return new Response("Photo not found", { status: 404 });
   const bytes = new Uint8Array(await downloaded.data.arrayBuffer());
-  const annotation = await safeSearch(bytes);
+  let annotation: Record<string, unknown> | null;
+  try {
+    annotation = await safeSearch(bytes);
+  } catch {
+    await admin.storage.from("review-photos").remove([path]);
+    return new Response(JSON.stringify({ approved: false, reason: moderationUnavailableReason() }), {
+      headers: { "Content-Type": "application/json" },
+    });
+  }
   const approved = isApprovedSafeSearch(annotation);
   if (!approved) {
     await admin.storage.from("review-photos").remove([path]);

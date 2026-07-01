@@ -1,4 +1,4 @@
-import { isApprovedSafeSearch, isSafeStoragePath, normalizeDimension } from "./index.ts";
+import { moderationUnavailableReason, isApprovedSafeSearch, isSafeStoragePath, normalizeDimension } from "./index.ts";
 
 Deno.test("isSafeStoragePath accepts user scoped image paths and rejects traversal", () => {
   if (!isSafeStoragePath("user-id/review-id/1782777600000-food.jpg")) throw new Error("valid path rejected");
@@ -25,5 +25,15 @@ Deno.test("isApprovedSafeSearch rejects adult, racy, and violent photos at possi
   }
   if (isApprovedSafeSearch({ adult: "VERY_UNLIKELY", racy: "VERY_UNLIKELY", violence: "POSSIBLE" })) {
     throw new Error("violence possible accepted");
+  }
+});
+
+Deno.test("isApprovedSafeSearch rejects missing annotations without throwing", () => {
+  if (isApprovedSafeSearch(null)) throw new Error("missing annotation accepted");
+});
+
+Deno.test("moderationUnavailableReason points to Vision key setup", () => {
+  if (!moderationUnavailableReason().includes("GOOGLE_VISION_KEY")) {
+    throw new Error("moderation setup reason should mention GOOGLE_VISION_KEY");
   }
 });

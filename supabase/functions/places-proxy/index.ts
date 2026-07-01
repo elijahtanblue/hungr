@@ -254,7 +254,9 @@ type SafePlace = {
   lat: number;
   lng: number;
   rating?: number;
+  userRatingCount?: number;
   priceLevel?: string;
+  photoName?: string;
   cuisines: string[];
   attribution: string;
 };
@@ -293,13 +295,16 @@ export function shapePlace(raw: any): SafePlace {
   if (typeof displayType === "string" && /bubble tea|boba/i.test(displayType)) {
     addCuisine(cuisines, "Bubble Tea");
   }
+  const photoName = (raw.photos ?? []).map((p: any) => p?.name).find((n: any) => typeof n === "string");
   return {
     placeId: raw.id,
     name: raw.displayName?.text ?? "",
     lat: raw.location?.latitude,
     lng: raw.location?.longitude,
     rating: raw.rating,
+    userRatingCount: raw.userRatingCount,
     priceLevel: raw.priceLevel,
+    ...(photoName ? { photoName } : {}),
     cuisines: Array.from(cuisines),
     attribution: (raw.attributions && raw.attributions[0]) || "Listing by Google",
   };
@@ -338,7 +343,7 @@ export default async function handler(req: Request): Promise<Response> {
       "Content-Type": "application/json",
       "X-Goog-Api-Key": KEY,
       "X-Goog-FieldMask":
-        "places.id,places.displayName,places.location,places.rating,places.priceLevel,places.primaryType,places.primaryTypeDisplayName,places.types,places.attributions",
+        "places.id,places.displayName,places.location,places.rating,places.userRatingCount,places.priceLevel,places.photos.name,places.primaryType,places.primaryTypeDisplayName,places.types,places.attributions",
     },
     body: JSON.stringify(buildTextSearchBody(lat, lng, textQuery, token, radius, openNow === true)),
   });

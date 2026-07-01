@@ -24,6 +24,16 @@ test("getPhotoUri resolves a name and serves repeats from cache", async () => {
   expect(supabase.functions.invoke).toHaveBeenCalledTimes(1);
 });
 
+test("getPhotoUri shares a concurrent lookup for the same photo", async () => {
+  (supabase.functions.invoke as jest.Mock).mockResolvedValue({ data: { uri: "https://lh3/shared.jpg" }, error: null });
+
+  await expect(Promise.all([
+    getPhotoUri("places/p1/photos/ref-shared"),
+    getPhotoUri("places/p1/photos/ref-shared"),
+  ])).resolves.toEqual(["https://lh3/shared.jpg", "https://lh3/shared.jpg"]);
+  expect(supabase.functions.invoke).toHaveBeenCalledTimes(1);
+});
+
 test("getPhotoUri serves a fresh 24 hour persisted cache entry", async () => {
   jest.spyOn(Date, "now").mockReturnValue(new Date("2026-06-30T00:00:00Z").getTime());
   (AsyncStorage.getItem as jest.Mock).mockResolvedValue(JSON.stringify({

@@ -20,6 +20,8 @@ import {
   type ReviewDraft,
 } from "../../src/api/community";
 import { getPlaceGuides, guideBadgeLabel, type PlaceGuide } from "../../src/api/guides";
+import { openStatus, openStatusLabel } from "../../src/domain/openStatus";
+import { formatWeekHours, shortDayName } from "../../src/domain/openingHours";
 import { moderateAndAttachReviewPhoto, type LocalReviewPhotoAsset } from "../../src/api/reviewPhotos";
 import { PlacePhotos } from "../../src/components/PlacePhotos";
 import { GoogleReviewsBlock } from "../../src/components/GoogleReviewsBlock";
@@ -149,7 +151,9 @@ export default function PlaceDetail() {
 
   async function attachReviewPhotos(reviewId: string, photos: LocalReviewPhotoAsset[]): Promise<void> {
     if (!placeId || photos.length === 0) return;
-    await Promise.all(photos.map((photo) => moderateAndAttachReviewPhoto(placeId, reviewId, photo)));
+    const results = await Promise.all(photos.map((photo) => moderateAndAttachReviewPhoto(placeId, reviewId, photo)));
+    const rejected = results.find((result) => !result.approved);
+    if (rejected) throw new Error(rejected.reason ?? "Review posted, but the photos could not be attached.");
     loadCommunity();
   }
 
@@ -181,11 +185,14 @@ export default function PlaceDetail() {
 
   return (
     <View style={s.wrap}>
-      <Pressable style={[s.back, { top: insets.top + space.xs }]} onPress={() => router.back()} accessibilityLabel="Back">
-        <Ionicons name="chevron-back" size={22} color={colors.ink} />
-      </Pressable>
+      {/* Solid header so the status bar / time never blends into the scrolling content. */}
+      <View style={[s.header, { height: insets.top + 48 }]}>
+        <Pressable style={[s.back, { top: insets.top + 4 }]} onPress={() => router.back()} accessibilityLabel="Back">
+          <Ionicons name="chevron-back" size={22} color={colors.ink} />
+        </Pressable>
+      </View>
       <ScrollView
-        contentContainerStyle={[s.content, { paddingTop: insets.top + space.xxl }]}
+        contentContainerStyle={[s.content, { paddingTop: insets.top + 60 }]}
         showsVerticalScrollIndicator
         scrollEventThrottle={200}
         onScroll={({ nativeEvent }) => {
@@ -204,7 +211,7 @@ export default function PlaceDetail() {
                 <Text style={s.hungrMeta}>{"★"} hungr {formatRating(community.ratingAverage)} ({community.ratingCount})</Text>
               )}
               {details?.rating !== undefined && (
-                <Text style={s.meta}>{"★"} {formatRating(details.rating)}{details.userRatingCount ? ` (${details.userRatingCount})` : ""}</Text>
+                <Text style={s.googleMeta}>{"★"} {formatRating(details.rating)}{details.userRatingCount ? ` (${details.userRatingCount})` : ""}</Text>
               )}
               {!!priceLabel(details?.priceLevel) && <Text style={s.meta}>{priceLabel(details?.priceLevel)}</Text>}
             </View>
@@ -226,45 +233,61 @@ export default function PlaceDetail() {
                 <Text style={s.mapsLink}>Show location</Text>
               </Pressable>
             )}
-            {(details?.openNow !== undefined || details?.takeout || details?.dineIn || details?.delivery) && (
+            {(() => {
+              const status = openStatus(details?.openNow, details?.nextCloseTime);
+              const showRow = status !== "unknown" || details?.takeout || details?.dineIn || details?.delivery;
+              if (!showRow) return null;
+              return (
               <View style={s.svcRow}>
-                {details?.openNow !== undefined && (
-                  <View style={[s.svcChip, details.openNow ? s.openChip : s.closedChip]}>
-                    <Text style={[s.svcChipTxt, details.openNow ? s.openChipTxt : s.closedChipTxt]}>{details.openNow ? "Open now" : "Closed"}</Text>
+                {status !== "unknown" && (
+                  <View style={[s.svcChip, status === "open" ? s.openChip : status === "closing-soon" ? s.soonChip : s.closedChip]}>
+                    <Text style={[s.svcChipTxt, status === "open" ? s.openChipTxt : status === "closing-soon" ? s.soonChipTxt : s.closedChipTxt]}>{openStatusLabel(status)}</Text>
                   </View>
                 )}
                 {details?.dineIn && <View style={[s.svcChip, s.amberChip]}><Text style={s.amberChipTxt}>Dine-in</Text></View>}
                 {details?.takeout && <View style={[s.svcChip, s.amberChip]}><Text style={s.amberChipTxt}>Takeout</Text></View>}
                 {details?.delivery && <View style={[s.svcChip, s.amberChip]}><Text style={s.amberChipTxt}>Delivery</Text></View>}
               </View>
-            )}
-            {details?.weekdayDescriptions && details.weekdayDescriptions.length > 0 && (
-              <View style={s.hours}>
-                <Text style={s.hoursTitle}>Opening hours</Text>
-                {details.weekdayDescriptions.map((line) => (
-                  <Text key={line} style={s.hoursLine}>{line}</Text>
-                ))}
-              </View>
-            )}
+              );
+            })()}
             {((details?.photos && details.photos.length > 0) || (community?.reviews ?? []).some((r) => r.photos?.length)) && (
               <PlacePhotos
                 names={details?.photos ?? []}
                 reviewPhotos={(community?.reviews ?? []).flatMap((r) => r.photos ?? [])}
               />
             )}
+            {(() => {
+              const week = formatWeekHours(details?.periods);
+              if (week.length > 0) {
+                const todayName = shortDayName(new Date().getDay());
+                return (
+                  <View style={s.hours}>
+                    <Text style={s.hoursTitle}>Opening hours</Text>
+                    {week.map((d) => {
+                      const isToday = d.day === todayName;
+                      return (
+                        <View key={d.day} style={s.hoursRow}>
+                          <Text style={[s.hoursDay, isToday && s.hoursToday]}>{d.day}</Text>
+                          <Text style={[s.hoursVal, isToday && s.hoursToday]}>{d.hours}</Text>
+                        </View>
+                      );
+                    })}
+                  </View>
+                );
+              }
+              if (details?.weekdayDescriptions && details.weekdayDescriptions.length > 0) {
+                return (
+                  <View style={s.hours}>
+                    <Text style={s.hoursTitle}>Opening hours</Text>
+                    {details.weekdayDescriptions.map((line) => (
+                      <Text key={line} style={s.hoursLine}>{line}</Text>
+                    ))}
+                  </View>
+                );
+              }
+              return null;
+            })()}
             {grounded && <GroundedBlock grounded={grounded} />}
-            <View style={s.ratingPills}>
-              {community?.ratingAverage !== null && community?.ratingAverage !== undefined && community.ratingCount > 0 && (
-                <View style={[s.ratingPill, s.hungrPill]}>
-                  <Text style={s.hungrPillTxt}>hungr {"★"} {formatRating(community.ratingAverage)} ({community.ratingCount})</Text>
-                </View>
-              )}
-              {details?.rating !== undefined && (
-                <View style={s.ratingPill}>
-                  <Text style={s.googlePillTxt}>Google {"★"} {formatRating(details.rating)}{details.userRatingCount ? ` (${details.userRatingCount})` : ""}</Text>
-                </View>
-              )}
-            </View>
             <View style={s.reviewTabs}>
               <Pressable
                 style={[s.tab, reviewSource === "hungr" && s.tabOn]}
@@ -312,13 +335,16 @@ export default function PlaceDetail() {
 
 const s = StyleSheet.create({
   wrap: { flex: 1, backgroundColor: colors.canvas },
-  back: { position: "absolute", top: space.xxl, left: space.md, zIndex: 2, width: 40, height: 40, borderRadius: 99, alignItems: "center", justifyContent: "center", backgroundColor: colors.surface, borderColor: colors.hair, borderWidth: 1 },
+  header: { position: "absolute", top: 0, left: 0, right: 0, zIndex: 3, backgroundColor: colors.canvas, borderBottomColor: colors.hair, borderBottomWidth: 1 },
+  back: { position: "absolute", left: space.md, zIndex: 4, width: 40, height: 40, borderRadius: 99, alignItems: "center", justifyContent: "center", backgroundColor: colors.surface, borderColor: colors.hair, borderWidth: 1 },
   content: { padding: space.lg, paddingTop: space.xxl + space.xl, gap: space.md },
   // Centered, with side margins clearing the floating back button so it reads as a title.
   name: { fontSize: 26, fontWeight: "800", color: colors.ink, textAlign: "center", marginHorizontal: 44 },
   metaRow: { flexDirection: "row", gap: space.md, justifyContent: "center", flexWrap: "wrap" },
   meta: { fontSize: 14, fontWeight: "600", color: colors.muted },
   hungrMeta: { fontSize: 14, fontWeight: "700", color: colors.accentPress },
+  // Google rating in slate (the blue attribution colour), not muted grey.
+  googleMeta: { fontSize: 14, fontWeight: "700", color: colors.slate },
   address: { fontSize: 14, color: colors.muted },
   guideChip: { alignSelf: "flex-start", flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "#FFF8DF", borderColor: colors.accent, borderWidth: 1, borderRadius: 999, paddingHorizontal: space.md, paddingVertical: 6 },
   guideChipTxt: { fontSize: 13, fontWeight: "800", color: colors.ink },
@@ -330,16 +356,17 @@ const s = StyleSheet.create({
   openChipTxt: { color: colors.been },
   closedChip: { backgroundColor: colors.surface, borderColor: colors.hair },
   closedChipTxt: { color: colors.muted },
+  soonChip: { backgroundColor: "#FBE7D2", borderColor: "#C77700" },
+  soonChipTxt: { color: "#A85C00" },
   amberChip: { backgroundColor: "#FFF8DF", borderColor: colors.accent },
   amberChipTxt: { fontSize: 13, fontWeight: "800", color: colors.accentPress },
   hours: { backgroundColor: colors.surface, borderColor: colors.hair, borderWidth: 1, borderRadius: radius.md, padding: space.md, gap: 3 },
   hoursTitle: { fontSize: 13, fontWeight: "800", color: colors.muted, textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 2 },
   hoursLine: { fontSize: 14, color: colors.ink },
-  ratingPills: { flexDirection: "row", flexWrap: "wrap", gap: space.sm },
-  ratingPill: { borderColor: colors.hair, borderWidth: 1, borderRadius: 999, paddingHorizontal: space.md, paddingVertical: 7, backgroundColor: colors.surface },
-  hungrPill: { borderColor: colors.accent, backgroundColor: "#FFF8DF" },
-  hungrPillTxt: { color: colors.accentPress, fontWeight: "800", fontSize: 13 },
-  googlePillTxt: { color: colors.slate, fontWeight: "800", fontSize: 13 },
+  hoursRow: { flexDirection: "row", justifyContent: "space-between", gap: space.md },
+  hoursDay: { fontSize: 14, color: colors.muted, fontWeight: "600", width: 52 },
+  hoursVal: { fontSize: 14, color: colors.ink, flex: 1, textAlign: "right" },
+  hoursToday: { color: colors.ink, fontWeight: "800" },
   reviewTabs: { flexDirection: "row", gap: space.sm },
   tab: { flex: 1, minHeight: 40, borderRadius: 999, borderColor: colors.hair, borderWidth: 1, alignItems: "center", justifyContent: "center", backgroundColor: colors.surface },
   tabOn: { backgroundColor: colors.accent, borderColor: colors.accent },

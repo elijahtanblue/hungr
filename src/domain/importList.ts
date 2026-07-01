@@ -6,10 +6,36 @@
 // We do not try to infer "been" vs "want to go" here (Takeout has no such signal) - the caller
 // decides the destination state.
 
-export type ImportRow = { name: string; query: string };
+// lat/lng are present only for the GeoJSON Takeout export, which carries each place's coordinates;
+// the resolver uses them to bias that row's search to the exact spot.
+export type ImportRow = { name: string; query: string; lat?: number; lng?: number };
 
 // Caps how many rows we hand back, so a giant paste cannot kick off thousands of lookups.
 export const MAX_IMPORT_ROWS = 50;
+
+// Google Takeout can export a saved list as GeoJSON (a .json file), which is the richest shape: it
+// carries the Title, the full Address, and the exact coordinates. Parse those when we see them.
+function parseGeoJson(text: string): ImportRow[] | null {
+  const trimmed = text.trim();
+  if (!trimmed.startsWith("{")) return null;
+  let parsed: any;
+  try { parsed = JSON.parse(trimmed); } catch { return null; }
+  if (!parsed || parsed.type !== "FeatureCollection" || !Array.isArray(parsed.features)) return null;
+
+  const rows: ImportRow[] = [];
+  for (const feature of parsed.features) {
+    const props = feature?.properties ?? {};
+    const name = (props.Title ?? props.title ?? props.name ?? "").toString().trim();
+    if (!name) continue;
+    const address = (props.Location?.Address ?? props.Address ?? "").toString().trim();
+    const coords = feature?.geometry?.coordinates;
+    // GeoJSON is [longitude, latitude].
+    const lng = Array.isArray(coords) && Number.isFinite(coords[0]) ? Number(coords[0]) : undefined;
+    const lat = Array.isArray(coords) && Number.isFinite(coords[1]) ? Number(coords[1]) : undefined;
+    rows.push({ name, query: address ? `${name} ${address}` : name, lat, lng });
+  }
+  return dedupe(rows).slice(0, MAX_IMPORT_ROWS);
+}
 
 // Splits one CSV line into fields, honouring "quoted, fields" and "" escaped quotes.
 function splitCsv(line: string): string[] {
@@ -41,6 +67,10 @@ function dedupe(rows: ImportRow[]): ImportRow[] {
 }
 
 export function parseImportText(text: string): ImportRow[] {
+  // A GeoJSON Takeout export is the richest source, so try it before falling back to line parsing.
+  const geo = parseGeoJson(text);
+  if (geo) return geo;
+
   const lines = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
   if (lines.length === 0) return [];
 

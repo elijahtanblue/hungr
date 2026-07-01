@@ -1,5 +1,5 @@
 import { supabase } from "../lib/supabase";
-import { getPlaceNames } from "./placeNames";
+import { getPlacePins } from "./placePins";
 import type { PlaceState } from "../domain/types";
 
 // First party content for a place: hungr community reviews and fact tags. This is our owned data,
@@ -185,6 +185,7 @@ export type MyReview = {
   placeName: string;
   body: string;
   rating: number | null;
+  placeRating: number | null;
   state?: Exclude<PlaceState, "go">;
   createdAt: string;
 };
@@ -194,13 +195,14 @@ export async function getMyReviews(): Promise<MyReview[]> {
   const { data, error } = await supabase.rpc("get_my_reviews");
   if (error || !Array.isArray(data)) return [];
   const rows = data as any[];
-  const names = await getPlaceNames(rows.map((r) => r.place_id));
+  const pins = await getPlacePins(rows.map((r) => r.place_id));
   return rows.map((r) => ({
     id: r.id,
     placeId: r.place_id,
-    placeName: names[r.place_id] ?? "A place",
+    placeName: pins[r.place_id]?.name ?? "A place",
     body: r.body,
     rating: r.rating ?? null,
+    placeRating: pins[r.place_id]?.rating ?? null,
     ...(isReviewState(r.state) ? { state: r.state } : {}),
     createdAt: r.created_at,
   }));
@@ -253,6 +255,7 @@ export type UserReview = {
   placeName: string;
   body: string;
   rating: number | null;
+  placeRating: number | null;
   state?: Exclude<PlaceState, "go">;
   upvotes: number;
   createdAt: string;
@@ -263,13 +266,14 @@ export async function getUserReviews(userId: string): Promise<UserReview[]> {
   const { data, error } = await supabase.rpc("get_user_reviews", { target: userId });
   if (error || !Array.isArray(data)) return [];
   const rows = data as any[];
-  const names = await getPlaceNames(rows.map((r) => r.place_id));
+  const pins = await getPlacePins(rows.map((r) => r.place_id));
   return rows.map((r) => ({
     id: r.id,
     placeId: r.place_id,
-    placeName: names[r.place_id] ?? "A place",
+    placeName: pins[r.place_id]?.name ?? "A place",
     body: r.body,
     rating: r.rating ?? null,
+    placeRating: pins[r.place_id]?.rating ?? null,
     ...(isReviewState(r.state) ? { state: r.state } : {}),
     upvotes: Number(r.upvotes ?? 0),
     createdAt: r.created_at,

@@ -6,16 +6,23 @@ Deno.test("shapePlace keeps display-safe fields, derives a coarse cuisine, drops
     displayName: { text: "Spicy World" },
     location: { latitude: -33.8, longitude: 151.2 },
     rating: 4.6,
+    userRatingCount: 512,
     priceLevel: "PRICE_LEVEL_MODERATE",
     primaryType: "chinese_restaurant",
     types: ["chinese_restaurant", "restaurant"],
+    photos: [
+      { name: "places/p1/photos/first", widthPx: 1200 },
+      { name: "places/p1/photos/second", widthPx: 1200 },
+    ],
     reviews: [{ text: { text: "secret review body" } }],
     attributions: ["Listing by Google"],
   };
   const out = shapePlace(raw);
   if (out.placeId !== "p1") throw new Error("placeId missing");
   if (out.rating !== 4.6) throw new Error("rating missing");
+  if (out.userRatingCount !== 512) throw new Error("userRatingCount missing");
   if (out.priceLevel !== "PRICE_LEVEL_MODERATE") throw new Error("price level missing");
+  if (out.photoName !== "places/p1/photos/first") throw new Error("first photo resource name missing");
   if (!out.cuisines.includes("Chinese")) throw new Error("coarse cuisine must be derived from place type");
   if (!out.attribution) throw new Error("attribution must be present");
   if (JSON.stringify(out).includes("secret review body")) {

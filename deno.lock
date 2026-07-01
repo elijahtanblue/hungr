@@ -37,6 +37,7 @@
         "npm:expo-constants@~56.0.18",
         "npm:expo-contacts@~56.0.9",
         "npm:expo-crypto@~56.0.4",
+        "npm:expo-document-picker@~56.0.4",
         "npm:expo-font@~56.0.7",
         "npm:expo-image-picker@~56.0.18",
         "npm:expo-linking@~56.0.14",

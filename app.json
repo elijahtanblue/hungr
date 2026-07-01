@@ -12,6 +12,8 @@
       "supportsTablet": false,
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "hungr uses your location to find food near you.",
+        "NSContactsUsageDescription": "hungr uses your contacts to find friends who are already here. We only send scrambled (hashed) versions, never the numbers themselves.",
+        "NSPhotoLibraryUsageDescription": "hungr lets you attach photos from your library to your own restaurant reviews.",
         "ITSAppUsesNonExemptEncryption": false
       }
     },

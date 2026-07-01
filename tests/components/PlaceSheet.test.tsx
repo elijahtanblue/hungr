@@ -42,11 +42,22 @@ test("shows open-now and available service options on the card", async () => {
   const place = { placeId: "p1", name: "Spicy World", lat: 0, lng: 0, rating: 4.6, cuisines: ["Chinese"] };
 
   await render(
-    <PlaceSheet place={place} onSetState={() => {}} address="1 Food St" openNow takeout dineIn delivery={false} />,
+    <PlaceSheet
+      place={place}
+      onSetState={() => {}}
+      address="1 Food St"
+      openNow
+      takeout
+      dineIn
+      delivery={false}
+      weekdayDescriptions={["Monday: 11 AM – 9 PM", "Tuesday: 11 AM – 9 PM"]}
+    />,
   );
 
   expect(screen.getByText("1 Food St")).toBeTruthy();
   expect(screen.getByText("Open now")).toBeTruthy();
+  expect(screen.getByText("Opening hours")).toBeTruthy();
+  expect(screen.getByText("Monday: 11 AM – 9 PM")).toBeTruthy();
   expect(screen.getByText("Dine-in")).toBeTruthy();
   expect(screen.getByText("Takeout")).toBeTruthy();
   expect(screen.queryByText("Delivery")).toBeNull();

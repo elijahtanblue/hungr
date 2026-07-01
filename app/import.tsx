@@ -28,6 +28,7 @@ async function currentBias(): Promise<{ lat: number; lng: number }> {
 export default function Import() {
   const insets = useSafeAreaInsets();
   const [text, setText] = useState("");
+  const [showTakeout, setShowTakeout] = useState(false);
   const [phase, setPhase] = useState<"input" | "review" | "done">("input");
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState({ done: 0, total: 0 });
@@ -44,6 +45,24 @@ export default function Import() {
     setItems(resolved.map((r) => ({ name: r.name, candidates: r.candidates, selected: 0, removed: false })));
     setBusy(false);
     setPhase("review");
+  }
+
+  // Pick a Takeout file (CSV or GeoJSON) and load its text into the box, so the user can import
+  // the file directly instead of copy-pasting a big export. expo-document-picker is loaded lazily
+  // so the rest of the screen never depends on the native module being present.
+  async function pickFile() {
+    try {
+      const DocumentPicker = require("expo-document-picker");
+      const result = await DocumentPicker.getDocumentAsync({
+        type: ["text/csv", "text/comma-separated-values", "application/json", "application/geo+json", "text/plain", "public.json", "public.comma-separated-values-text"],
+        copyToCacheDirectory: true,
+      });
+      if (result.canceled || !result.assets?.[0]) return;
+      const res = await fetch(result.assets[0].uri);
+      setText(await res.text());
+    } catch {
+      // Best effort: if the picker is unavailable, the user can still paste.
+    }
   }
 
   function cycle(index: number) {
@@ -85,6 +104,45 @@ export default function Import() {
               your notes: one place per line, or a "Name, Address" per line. We will find each one so
               you can confirm before adding them to Want to go.
             </Text>
+
+            <Pressable
+              style={s.takeoutToggle}
+              onPress={() => setShowTakeout((v) => !v)}
+              accessibilityRole="button"
+              accessibilityState={{ expanded: showTakeout }}
+            >
+              <Ionicons name="logo-google" size={16} color={colors.accentPress} />
+              <Text style={s.takeoutToggleTxt}>Already have saved places on Google?</Text>
+              <Ionicons name={showTakeout ? "chevron-up" : "chevron-down"} size={16} color={colors.muted} />
+            </Pressable>
+
+            {showTakeout && (
+              <View style={s.takeoutPanel}>
+                <Text style={s.takeoutLead}>
+                  Google does not let apps read your saved places directly, but you can export them in
+                  a couple of minutes and bring them here:
+                </Text>
+                {[
+                  "On a computer, go to takeout.google.com and sign in with your Google account.",
+                  "Click \"Deselect all\", then scroll down and tick only \"Saved\" (or \"Maps (your places)\").",
+                  "Click Next step, then Create export, and wait for the email from Google (usually a few minutes).",
+                  "Download and unzip the file. Open the \"Saved Places\" file: a .json (best, keeps addresses) or a .csv.",
+                  "Open it in any text editor, copy everything, and paste it into the box below.",
+                ].map((step, i) => (
+                  <View key={i} style={s.takeoutStep}>
+                    <Text style={s.takeoutNum}>{i + 1}</Text>
+                    <Text style={s.takeoutStepTxt}>{step}</Text>
+                  </View>
+                ))}
+                <Text style={s.takeoutFoot}>We only read the place names and addresses, and you confirm every match before anything is saved.</Text>
+              </View>
+            )}
+            <Pressable style={s.fileBtn} onPress={pickFile} disabled={busy} accessibilityRole="button">
+              <Ionicons name="document-attach-outline" size={18} color={colors.accentPress} />
+              <Text style={s.fileBtnTxt}>Choose a file (CSV or JSON)</Text>
+            </Pressable>
+            <Text style={s.orHint}>or paste your list below</Text>
+
             <TextInput
               style={s.input}
               placeholder={"Mr Wong, Bridge St\nGumshara Ramen\n..."}
@@ -195,6 +253,17 @@ const s = StyleSheet.create({
   title: { fontSize: 18, fontWeight: "800", color: colors.ink },
   content: { padding: space.xl, gap: space.md },
   help: { fontSize: 14, color: colors.muted, lineHeight: 21 },
+  takeoutToggle: { flexDirection: "row", alignItems: "center", gap: space.sm, borderColor: colors.hair, borderWidth: 1, borderRadius: radius.md, paddingHorizontal: space.md, paddingVertical: space.sm, backgroundColor: colors.surface },
+  takeoutToggleTxt: { flex: 1, fontSize: 14, fontWeight: "800", color: colors.ink },
+  takeoutPanel: { gap: space.sm, backgroundColor: colors.surface, borderColor: colors.hair, borderWidth: 1, borderRadius: radius.md, padding: space.md },
+  takeoutLead: { fontSize: 13, color: colors.muted, lineHeight: 20 },
+  takeoutStep: { flexDirection: "row", gap: space.sm, alignItems: "flex-start" },
+  takeoutNum: { width: 20, height: 20, borderRadius: 10, backgroundColor: colors.accent, color: colors.onAccent, fontWeight: "800", fontSize: 12, textAlign: "center", lineHeight: 20, overflow: "hidden" },
+  takeoutStepTxt: { flex: 1, fontSize: 13, color: colors.ink, lineHeight: 20 },
+  takeoutFoot: { fontSize: 12, color: colors.muted, lineHeight: 18, fontStyle: "italic" },
+  fileBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: space.sm, borderColor: colors.accent, borderWidth: 1, borderRadius: radius.md, paddingVertical: space.md, backgroundColor: "#FFF8DF" },
+  fileBtnTxt: { color: colors.accentPress, fontWeight: "800", fontSize: 14 },
+  orHint: { fontSize: 12, color: colors.muted, textAlign: "center" },
   input: {
     minHeight: 160, borderColor: colors.hair, borderWidth: 1, borderRadius: radius.md, padding: space.md,
     color: colors.ink, textAlignVertical: "top", backgroundColor: colors.surface, fontSize: 15, lineHeight: 22,

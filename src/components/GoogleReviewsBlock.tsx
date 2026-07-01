@@ -5,12 +5,35 @@ import type { PlaceDetails } from "../api/placeDetails";
 import { formatRating } from "../lib/formatRating";
 import { translateGoogleReview } from "../api/googleReviewTranslation";
 
+const ENGLISH_HINTS = new Set([
+  "a", "about", "again", "all", "also", "and", "are", "at", "back", "best", "but", "came",
+  "clean", "come", "delicious", "did", "food", "for", "fresh", "friendly", "from", "good",
+  "great", "had", "highly", "i", "in", "is", "it", "its", "nice", "not", "of", "ordered",
+  "out", "place", "really", "service", "so", "that", "the", "there", "this", "to", "very",
+  "was", "we", "were", "will", "with", "would", "you",
+]);
+
+function shouldOfferTranslation(text: string): boolean {
+  const words = text.toLowerCase().match(/[a-z']+/g) ?? [];
+  if (words.length === 0) return false;
+
+  const asciiLetters = (text.match(/[A-Za-z]/g) ?? []).length;
+  const nonAsciiChars = (text.match(/[^\x00-\x7F]/g) ?? []).length;
+  if (nonAsciiChars > asciiLetters * 0.15) return true;
+
+  const englishHits = words.filter((word) => ENGLISH_HINTS.has(word.replace(/^'|'$/g, ""))).length;
+  if (words.length <= 3) return englishHits === 0;
+  return englishHits < 2;
+}
+
 function GoogleReviewCard({ review, index }: { review: PlaceDetails["reviews"][number]; index: number }) {
   const [translated, setTranslated] = useState<string | null>(null);
   const [showTranslated, setShowTranslated] = useState(false);
   const [loading, setLoading] = useState(false);
+  const canTranslate = shouldOfferTranslation(review.text);
 
   async function toggleTranslation() {
+    if (!canTranslate) return;
     if (showTranslated) {
       setShowTranslated(false);
       return;
@@ -36,9 +59,11 @@ function GoogleReviewCard({ review, index }: { review: PlaceDetails["reviews"][n
       </View>
       <Text style={s.time}>{review.relativeTime}</Text>
       <Text style={s.text}>{showTranslated && translated ? translated : review.text}</Text>
-      <Pressable onPress={toggleTranslation} accessibilityRole="button" style={s.translateBtn}>
-        <Text style={s.translateTxt}>{showTranslated ? "Original" : loading ? "Translating..." : "Translate"}</Text>
-      </Pressable>
+      {canTranslate && (
+        <Pressable onPress={toggleTranslation} accessibilityRole="button" style={s.translateBtn}>
+          <Text style={s.translateTxt}>{showTranslated ? "Original" : loading ? "Translating..." : "Translate"}</Text>
+        </Pressable>
+      )}
     </View>
   );
 }

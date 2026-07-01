@@ -4,12 +4,25 @@ import { Ionicons } from "@expo/vector-icons";
 import { colors, radius, space } from "../theme";
 import type { Place, PlaceState } from "../domain/types";
 import { formatRating } from "../lib/formatRating";
+import { openStatus, openStatusLabel } from "../domain/openStatus";
+import { todaysHours } from "../domain/openingHours";
+import type { OpeningPeriod } from "../api/placeDetails";
 
 export type CardReview = { body: string; rating: number | null };
 
+function priceLabel(level?: string): string {
+  switch (level) {
+    case "PRICE_LEVEL_INEXPENSIVE": return "$";
+    case "PRICE_LEVEL_MODERATE": return "$$";
+    case "PRICE_LEVEL_EXPENSIVE": return "$$$";
+    case "PRICE_LEVEL_VERY_EXPENSIVE": return "$$$$";
+    default: return "";
+  }
+}
+
 export function PlaceSheet({
   place, onSetState, onOpenDetail, visitCount, checkedInRecently = false, onCheckIn, photoUri, myReview, address,
-  openNow, takeout, dineIn, delivery,
+  openNow, nextCloseTime, weekdayDescriptions, periods, takeout, dineIn, delivery,
 }: {
   place: Place;
   onSetState: (placeId: string, state: PlaceState) => void;
@@ -21,6 +34,9 @@ export function PlaceSheet({
   myReview?: CardReview | null;
   address?: string | null;
   openNow?: boolean;
+  nextCloseTime?: string;
+  weekdayDescriptions?: string[];
+  periods?: OpeningPeriod[];
   takeout?: boolean;
   dineIn?: boolean;
   delivery?: boolean;
@@ -30,6 +46,10 @@ export function PlaceSheet({
   const isLiked = place.state === "liked";
   const isLoved = place.state === "loved";
   const isDisliked = place.state === "disliked";
+  const openingHoursPreview = weekdayDescriptions?.find((line) => line.trim());
+  const price = priceLabel(place.priceLevel);
+  const today = todaysHours(periods);
+  const status = openStatus(openNow, nextCloseTime);
 
   useEffect(() => {
     if (!checkedInRecently) return;
@@ -48,7 +68,13 @@ export function PlaceSheet({
       <View style={s.row}>
         <View style={s.headText}>
           <Text style={s.name}>{place.name}</Text>
-          {place.cuisines.length > 0 && <Text style={s.meta}>{place.cuisines.join(" · ")}</Text>}
+          {(place.cuisines.length > 0 || price) && (
+            <Text style={s.meta}>
+              {place.cuisines.join(" · ")}
+              {place.cuisines.length > 0 && price ? "  ·  " : ""}
+              {!!price && <Text style={s.price}>{price}</Text>}
+            </Text>
+          )}
           {!!address && <Text style={s.cardAddress} numberOfLines={1}>{address}</Text>}
         </View>
         {place.rating !== undefined && (
@@ -58,16 +84,22 @@ export function PlaceSheet({
           </View>
         )}
       </View>
-      {(openNow !== undefined || takeout || dineIn || delivery) && (
+      {(status !== "unknown" || takeout || dineIn || delivery) && (
         <View style={s.chips}>
-          {openNow !== undefined && (
-            <View style={[s.chip, openNow ? s.openChip : s.closedChip]}>
-              <Text style={[s.chipTxt, openNow ? s.openChipTxt : s.closedChipTxt]}>{openNow ? "Open now" : "Closed"}</Text>
+          {status !== "unknown" && (
+            <View style={[s.chip, status === "open" ? s.openChip : status === "closing-soon" ? s.soonChip : s.closedChip]}>
+              <Text style={[s.chipTxt, status === "open" ? s.openChipTxt : status === "closing-soon" ? s.soonChipTxt : s.closedChipTxt]}>{openStatusLabel(status)}</Text>
             </View>
           )}
           {dineIn && <View style={[s.chip, s.svcChip]}><Text style={s.svcChipTxt}>Dine-in</Text></View>}
           {takeout && <View style={[s.chip, s.svcChip]}><Text style={s.svcChipTxt}>Takeout</Text></View>}
           {delivery && <View style={[s.chip, s.svcChip]}><Text style={s.svcChipTxt}>Delivery</Text></View>}
+        </View>
+      )}
+      {(today || openingHoursPreview) && (
+        <View style={s.hoursPreview}>
+          <Text style={s.hoursLabel}>{today ? "Hours today" : "Opening hours"}</Text>
+          <Text style={s.hoursText} numberOfLines={1}>{today ?? openingHoursPreview}</Text>
         </View>
       )}
       <View style={s.actions}>
@@ -142,6 +174,7 @@ const s = StyleSheet.create({
   rate: { flexDirection: "row", alignItems: "center", gap: 3 },
   rateNum: { fontSize: 26, fontWeight: "800", color: colors.accentPress },
   meta: { color: colors.muted, marginTop: 2 },
+  price: { color: colors.ink, fontWeight: "800" },
   cardAddress: { color: colors.muted, fontSize: 13, marginTop: 2 },
   chips: { flexDirection: "row", flexWrap: "wrap", gap: space.xs, marginTop: space.sm },
   chip: { borderRadius: radius.pill, paddingHorizontal: space.sm, paddingVertical: 4, borderWidth: 1 },
@@ -150,9 +183,14 @@ const s = StyleSheet.create({
   openChipTxt: { color: colors.been },
   closedChip: { backgroundColor: colors.canvas, borderColor: colors.hair },
   closedChipTxt: { color: colors.muted },
+  soonChip: { backgroundColor: "#FBE7D2", borderColor: "#C77700" },
+  soonChipTxt: { color: "#A85C00" },
   // Amber when the service is available, matching the "glowing amber if available" request.
   svcChip: { backgroundColor: "#FFF8DF", borderColor: colors.accent },
   svcChipTxt: { fontSize: 12, fontWeight: "800", color: colors.accentPress },
+  hoursPreview: { marginTop: space.sm, gap: 2 },
+  hoursLabel: { fontSize: 11, fontWeight: "800", color: colors.muted, textTransform: "uppercase" },
+  hoursText: { fontSize: 13, color: colors.ink },
   actions: { flexDirection: "row", flexWrap: "wrap", gap: space.sm, marginTop: space.md },
   btn: { flexGrow: 1, flexBasis: "46%", alignItems: "center", borderColor: colors.hair, borderWidth: 1, borderRadius: radius.md, paddingVertical: space.sm, paddingHorizontal: space.md },
   primary: { backgroundColor: colors.accent, borderColor: colors.accent },

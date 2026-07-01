@@ -7,9 +7,13 @@ export type Place = {
   lat: number;
   lng: number;
   rating?: number;       // live from Google, never persisted
+  userRatingCount?: number; // live from Google, used for density-scaled quality
   priceLevel?: PriceLevel;
+  priceBand?: 1 | 2 | 3 | 4; // curated/first-party price band (overrides priceLevel when set)
+  photoName?: string;    // live Google photo resource name, resolved to a display URL on demand
   distanceMeters?: number;
   cuisines: string[];    // coarse from Google place type, refined by first party tags
+  dietaryTags?: string[]; // first-party dietary flags, e.g. ["vegetarian"], never from Google reviews
   state?: PlaceState;     // first party, from user_places
   guideAward?: string;    // curated guide badge, e.g. "Michelin · 1 Star" (display only)
 };

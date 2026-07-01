@@ -27,8 +27,8 @@ const SORTS: { key: Sort; label: string }[] = [
 function sortPlaces(places: MyPlace[], sort: Sort): MyPlace[] {
   const copy = [...places];
   if (sort === "rating") {
-    // Highest of your own ratings first; unrated fall to the bottom.
-    copy.sort((a, b) => (b.rating ?? -1) - (a.rating ?? -1));
+    // Highest restaurant ratings first; unrated places fall to the bottom.
+    copy.sort((a, b) => (b.placeRating ?? -1) - (a.placeRating ?? -1));
   } else {
     copy.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
   }
@@ -45,7 +45,7 @@ function PlaceRow({ place }: { place: MyPlace }) {
       <View style={s.rowText}>
         <View style={s.nameRow}>
           <Text style={s.name} numberOfLines={1}>{place.name}</Text>
-          {place.rating !== null && <Text style={s.rating}>{"★"} {formatRating(place.rating)}</Text>}
+          {place.placeRating !== null && <Text style={s.rating}>{"★"} {formatRating(place.placeRating)}</Text>}
         </View>
         {place.note && <Text style={s.meta} numberOfLines={1}>{place.note}</Text>}
         {place.avoidReason && <Text style={s.meta} numberOfLines={1}>{place.avoidReason}</Text>}

@@ -11,12 +11,16 @@ import { PlaceSheet } from "../../src/components/PlaceSheet";
 import { PreferencesSheet } from "../../src/components/PreferencesSheet";
 import { PlacesListSheet } from "../../src/components/PlacesListSheet";
 import { PlaceFeedbackPrompt } from "../../src/components/PlaceFeedbackPrompt";
-import { searchNearby, withFirstPartyCuisines, withUserPlaceStates, applyFilters, mergePlaces } from "../../src/api/places";
-import { getPlaceDetails } from "../../src/api/placeDetails";
-import { getPhotoUri } from "../../src/api/placePhotos";
+import { searchNearbyPage, withFirstPartyCuisines, withUserPlaceStates, applyFilters, mergePlaces } from "../../src/api/places";
+import { getPlaceDetails, type PlaceDetails } from "../../src/api/placeDetails";
+import { prefetchPhotoUri } from "../../src/api/placePhotos";
 import { getCommunity } from "../../src/api/community";
 import { spreadOverlappingPins } from "../../src/domain/spreadPins";
 import { getPlaceGuides, annotateGuides, type PlaceGuide } from "../../src/api/guides";
+import { getFirstPartyFacts, annotateFacts, type FirstPartyFact } from "../../src/api/firstPartyFacts";
+import { runIntentQuery, type StructuredQuery } from "../../src/domain/intentQuery";
+import { OccasionChips } from "../../src/components/OccasionChips";
+import type { Occasion } from "../../src/domain/occasionPresets";
 import { loadSuppressedCuisines } from "../../src/api/preferences";
 import { setUserPlaceState, clearUserPlaceState } from "../../src/api/userPlaces";
 import { saveReviewFeedback } from "../../src/api/reviewFeedback";
@@ -28,6 +32,23 @@ import { CUISINE_GROUPS } from "../../src/domain/cuisines";
 import { nearbySearchRegion, listTitleForSearchMode, searchTextForAction, type MapSearchMode } from "../../src/domain/mapSearch";
 import { colors, space } from "../../src/theme";
 import type { Place, PlaceState } from "../../src/domain/types";
+
+const BACKGROUND_PLACE_PAGES = 2;
+const SEARCH_PHOTO_PREFETCH_LIMIT = 12;
+
+async function hydratePlaces(page: Place[]): Promise<Place[]> {
+  return withUserPlaceStates(await withFirstPartyCuisines(page));
+}
+
+function warmPlacePhotos(places: Place[]) {
+  const seen = new Set<string>();
+  for (const place of places) {
+    if (!place.photoName || seen.has(place.photoName)) continue;
+    seen.add(place.photoName);
+    prefetchPhotoUri(place.photoName, 450).catch(() => {});
+    if (seen.size >= SEARCH_PHOTO_PREFETCH_LIMIT) return;
+  }
+}
 
 export default function Map() {
   const insets = useSafeAreaInsets();
@@ -47,12 +68,17 @@ export default function Map() {
   const [visitStatus, setVisitStatus] = useState<VisitStatus>({ count: 0, checkedInRecently: false });
   const [cardPhoto, setCardPhoto] = useState<string | null>(null);
   const [cardAddress, setCardAddress] = useState<string | null>(null);
-  const [cardInfo, setCardInfo] = useState<{ openNow?: boolean; takeout?: boolean; dineIn?: boolean; delivery?: boolean }>({});
+  const [cardInfo, setCardInfo] = useState<{ openNow?: boolean; nextCloseTime?: string; weekdayDescriptions?: string[]; periods?: PlaceDetails["periods"]; takeout?: boolean; dineIn?: boolean; delivery?: boolean }>({});
   const [cardReview, setCardReview] = useState<{ body: string; rating: number | null } | null>(null);
   const [loading, setLoading] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [pageToken, setPageToken] = useState<string | undefined>(undefined);
   const [home, setHome] = useState<{ latitude: number; longitude: number } | null>(null);
   const [savedPins, setSavedPins] = useState<Place[]>([]);
   const [guides, setGuides] = useState<Record<string, PlaceGuide>>({});
+  const [facts, setFacts] = useState<Record<string, FirstPartyFact>>({});
+  const [activeIntent, setActiveIntent] = useState<StructuredQuery | null>(null);
+  const [activeOccasionId, setActiveOccasionId] = useState<string | null>(null);
   const {
     selected: sel,
     suppressed,
@@ -142,19 +168,27 @@ export default function Map() {
     setCardAddress(null);
     setCardInfo({});
     setCardReview(null);
+    let didSetPhoto = false;
+    const setFirstPhoto = (uri: string | null) => {
+      if (!active || !uri || didSetPhoto) return;
+      didSetPhoto = true;
+      setCardPhoto(uri);
+    };
     getVisitStatus(placeId).then((status) => { if (active) setVisitStatus(status); }).catch(() => {});
+    if (selected.photoName) prefetchPhotoUri(selected.photoName, 450).then(setFirstPhoto).catch(() => {});
     // First live Google photo + address + hours/service options for the card (display only). All
     // come from the single details call we already make on tap, so no extra per-search cost.
     getPlaceDetails(placeId)
       .then((d) => {
-        if (!active || !d) return null;
+        if (!active || !d) return;
         if (d.address) setCardAddress(d.address);
-        setCardInfo({ openNow: d.openNow, takeout: d.takeout, dineIn: d.dineIn, delivery: d.delivery });
+        setCardInfo({ openNow: d.openNow, nextCloseTime: d.nextCloseTime, weekdayDescriptions: d.weekdayDescriptions, periods: d.periods, takeout: d.takeout, dineIn: d.dineIn, delivery: d.delivery });
         const name = d.photos?.[0];
-        if (!name) return null;
-        return getPhotoUri(name);
+        if (name && name !== selected.photoName) {
+          // Card image is shown small, so request a narrower width: faster transfer, lower latency.
+          prefetchPhotoUri(name, 450).then(setFirstPhoto).catch(() => {});
+        }
       })
-      .then((uri) => { if (active && uri) setCardPhoto(uri); })
       .catch(() => {});
     // The user's own review, so a rated place can show why they liked / disliked it.
     if (selected.state) {
@@ -172,13 +206,15 @@ export default function Map() {
     const id = ++reqId.current;
     const searchText = activeSearchText || "food";
     setLoading(true);
-    searchNearby(region.latitude, region.longitude, searchText, { radiusMeters: withinKm * 1000, openNow })
-      .then(withFirstPartyCuisines)
-      .then(withUserPlaceStates)
-      .then((result) => {
+    searchNearbyPage(region.latitude, region.longitude, searchText, { radiusMeters: withinKm * 1000, openNow })
+      .then(async ({ places: page, nextPageToken }) => {
+        const result = await hydratePlaces(page);
         if (id !== reqId.current) return; // ignore stale responses
         setPlaces((prev) => (searchText === lastSearchText.current ? mergePlaces(prev, result) : result));
+        warmPlacePhotos(result);
+        setPageToken(nextPageToken);
         lastSearchText.current = searchText;
+        setLoading(false);
         // Auto-zoom onto the best match for a freshly submitted search.
         if (focusOnResults.current && result.length > 0) {
           focusOnResults.current = false;
@@ -191,10 +227,52 @@ export default function Map() {
             longitudeDelta: Math.min(r.longitudeDelta, 0.018),
           }));
         }
+        if (!nextPageToken) return;
+        setLoadingMore(true);
+        let token: string | undefined = nextPageToken;
+        for (let pageIndex = 0; pageIndex < BACKGROUND_PLACE_PAGES && token && id === reqId.current; pageIndex++) {
+          try {
+            const more = await searchNearbyPage(region.latitude, region.longitude, searchText, { radiusMeters: withinKm * 1000, openNow, pageToken: token });
+            const moreResult = await hydratePlaces(more.places);
+            if (id !== reqId.current) return;
+            setPlaces((prev) => mergePlaces(prev, moreResult));
+            warmPlacePhotos(moreResult);
+            token = more.nextPageToken;
+            setPageToken(token);
+          } catch {
+            break;
+          }
+        }
       })
       .catch(() => {})
-      .finally(() => { if (id === reqId.current) setLoading(false); });
+      .finally(() => {
+        if (id === reqId.current) {
+          setLoading(false);
+          setLoadingMore(false);
+        }
+      });
   }, [region.latitude, region.longitude, activeSearchText, refresh, withinKm, openNow]);
+
+  // Lazily pull the next page of Google results as the user scrolls the list, so the search feels
+  // endless without a slow first paint. Guarded so only one page loads at a time.
+  function loadMorePlaces() {
+    if (!pageToken || loadingMore) return;
+    const token = pageToken;
+    // Capture the current search generation so a page that resolves after the user starts a new
+    // search (pan or type) is discarded instead of merging stale-query pins into fresh results.
+    const id = reqId.current;
+    setLoadingMore(true);
+    searchNearbyPage(region.latitude, region.longitude, activeSearchText || "food", { radiusMeters: withinKm * 1000, openNow, pageToken: token })
+      .then(async ({ places: page, nextPageToken }) => {
+        const result = await hydratePlaces(page);
+        if (id !== reqId.current) return;
+        setPlaces((prev) => mergePlaces(prev, result));
+        warmPlacePhotos(result);
+        setPageToken(nextPageToken);
+      })
+      .catch(() => {})
+      .finally(() => { if (id === reqId.current) setLoadingMore(false); });
+  }
 
   // Curated guide awards (Michelin, hats) for every place currently on the map, fetched in one
   // batch whenever the visible set changes and merged in as display-only badges.
@@ -203,6 +281,16 @@ export default function Map() {
     if (ids.length === 0) return;
     let active = true;
     getPlaceGuides(ids).then((g) => { if (active) setGuides(g); }).catch(() => {});
+    return () => { active = false; };
+  }, [places, savedPins]);
+
+  // First-party facts (curated price band, dietary flags) for the visible set, fetched in one batch
+  // and fed into the intent rule engine. Best-effort, exactly like the guide badges above.
+  useEffect(() => {
+    const ids = Array.from(new Set([...places, ...savedPins].map((p) => p.placeId)));
+    if (ids.length === 0) return;
+    let active = true;
+    getFirstPartyFacts(ids).then((f) => { if (active) setFacts(f); }).catch(() => {});
     return () => { active = false; };
   }, [places, savedPins]);
 
@@ -223,8 +311,31 @@ export default function Map() {
     setSelected(null);
     const q = searchTextForAction("typed", query);
     if (!q) return;
+    setActiveOccasionId(null);
+    setActiveIntent(null);
     setListMode("typed");
     setListQuery(q);
+    setActiveSearchText(q);
+    setPlaces([]);
+    setLoading(true);
+    lastSearchText.current = null;
+    setRefresh((n) => n + 1);
+    focusOnResults.current = true;
+    setShowList(true);
+  }
+
+  // Tapping an occasion chip runs its preset: the queryHint becomes the Google search text and the
+  // structured query drives the intent engine's ranking. Mirrors submitTypedSearch so old pins are
+  // cleared and the results sheet opens, rather than leaving stale pins under the new search.
+  function pickOccasion(occasion: Occasion | null) {
+    setSelected(null);
+    setActiveOccasionId(occasion?.id ?? null);
+    setActiveIntent(occasion?.query ?? null);
+    if (!occasion) return;
+    const q = occasion.query.queryHint;
+    setQuery(q);
+    setListMode("typed");
+    setListQuery(occasion.label);
     setActiveSearchText(q);
     setPlaces([]);
     setLoading(true);
@@ -292,15 +403,20 @@ export default function Map() {
     }
   }
 
+  // Enrich BEFORE filtering so the intent engine can see guide awards (prestige override) and
+  // first-party facts (price band, dietary tags). Annotating after the fact, as the map used to,
+  // would leave the engine blind to those signals.
+  const enrich = (list: Place[]) => annotateFacts(annotateGuides(list, guides), facts);
   const filterVisible = (list: Place[]) => {
-    const f = applyFilters(list, { selected: sel, suppressed, budgetMax, withinKm, minRating, sortBy, showState });
-    return friendsOnly ? f.filter((p) => friendsBeen.has(p.placeId)) : f;
+    const f = applyFilters(enrich(list), { selected: sel, suppressed, budgetMax, withinKm, minRating, sortBy, showState });
+    const ranked = activeIntent ? runIntentQuery(f, activeIntent).results.map((r) => r.place) : f;
+    return friendsOnly ? ranked.filter((p) => friendsBeen.has(p.placeId)) : ranked;
   };
   // The MAP shows saved pins as a base layer plus the live search results on top. The LIST and
   // popup show only the live search results, so a search returns what you searched for, never your
   // saved places. Co-located pins are fanned out so a stacked restaurant is still tappable.
   const merged = mergePlaces(savedPins, places);
-  const mapVisible = spreadOverlappingPins(annotateGuides(filterVisible(merged), guides));
+  const mapVisible = spreadOverlappingPins(filterVisible(merged));
   const listVisible = filterVisible(places);
   const currentSelected = selected ? merged.find((p) => p.placeId === selected.placeId) ?? selected : null;
 
@@ -333,6 +449,7 @@ export default function Map() {
           loading={loading}
         />
         <CuisineFilter />
+        <OccasionChips activeId={activeOccasionId} onPick={pickOccasion} />
         {(friendsBeen.size > 0 || friendsOnly) && (
           <Pressable
             onPress={() => setFriendsOnly((v) => !v)}
@@ -365,6 +482,9 @@ export default function Map() {
           myReview={cardReview}
           address={cardAddress}
           openNow={cardInfo.openNow}
+          nextCloseTime={cardInfo.nextCloseTime}
+          weekdayDescriptions={cardInfo.weekdayDescriptions}
+          periods={cardInfo.periods}
           takeout={cardInfo.takeout}
           dineIn={cardInfo.dineIn}
           delivery={cardInfo.delivery}
@@ -405,6 +525,9 @@ export default function Map() {
           onSelect={focusPlace}
           onClose={() => setShowList(false)}
           title={listTitleForSearchMode(listMode, listQuery)}
+          hasMore={!!pageToken}
+          loadingMore={loadingMore}
+          onLoadMore={loadMorePlaces}
         />
       )}
       {feedback && (

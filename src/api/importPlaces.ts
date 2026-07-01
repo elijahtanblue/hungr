@@ -19,11 +19,14 @@ export async function resolveImportRows(
   const out: ResolvedRow[] = [];
   for (let i = 0; i < rows.length; i++) {
     const row = rows[i];
+    // A GeoJSON row carries its own coordinates, so bias that row's search to the exact spot;
+    // otherwise fall back to the shared bias (the user's location or the default region).
+    const origin = typeof row.lat === "number" && typeof row.lng === "number" ? { lat: row.lat, lng: row.lng } : bias;
     let candidates: Place[] = [];
     try {
-      let results = await searchNearby(bias.lat, bias.lng, row.query);
+      let results = await searchNearby(origin.lat, origin.lng, row.query);
       if (results.length === 0 && row.name && row.name !== row.query) {
-        results = await searchNearby(bias.lat, bias.lng, row.name);
+        results = await searchNearby(origin.lat, origin.lng, row.name);
       }
       candidates = results.slice(0, 3);
     } catch {
