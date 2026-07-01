@@ -17,3 +17,23 @@ test("submitting the search field triggers a manual refresh", async () => {
 
   expect(onSubmit).toHaveBeenCalled();
 });
+
+test("tapping the AI icon toggles AI search mode", async () => {
+  const onToggleAi = jest.fn();
+
+  await render(
+    <SearchBar value="" onChange={() => {}} onPreferences={() => {}} onToggleAi={onToggleAi} />,
+  );
+
+  await fireEvent.press(screen.getByLabelText("AI search"));
+
+  expect(onToggleAi).toHaveBeenCalled();
+});
+
+test("AI mode swaps the placeholder to an ask-style prompt", async () => {
+  await render(
+    <SearchBar value="" onChange={() => {}} onPreferences={() => {}} aiMode />,
+  );
+
+  expect(screen.getByPlaceholderText("Try asking hungrAI where to go for date night")).toBeTruthy();
+});

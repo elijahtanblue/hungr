@@ -110,17 +110,44 @@ is the rule engine, occasion presets, first_party_facts table, and UI (no AI). P
 intent-parse and intent-reasons functions and the free-text box.
 **Depends on / blocked by:** Phase 2 review-mining ideas are blocked by item 2 (legal).
 
-## 8. Menu enrichment pipeline (own project)
-**What:** Populate first_party_facts (price_band, dietary_flags) by extracting from restaurant
-menus and websites. Handles HTML, PDFs, images needing OCR, and third-party ordering widgets.
-Do-once-per-place, store the result; not per-query.
-**Why:** Google lacks per-person price and precise dietary ("vegan-friendly" so a vegan can dine
-with non-vegan friends). Menus have both, and derived facts are first-party data we may store.
-**Pros:** Fills the two biggest data gaps in Intent Search; amortized cost (write once).
-**Cons:** Large, fragile subsystem (heterogeneous menus, OCR, sites break); realistic clean
-coverage is only 30 to 50 percent of places; third-party sites have their own ToS and robots
-rules.
-**Context:** Intent Search (item 7) builds the first_party_facts consumer interface now, seeded
-with free wins (name-based dietary flags, curated Michelin and hat prices). This item is the
-separate pipeline that fills the rest. Needs its own brainstorm to spec cycle.
-**Depends on / blocked by:** Item 7 Phase 1 (the facts table and consumer) shipped first.
+## 8. Menu enrichment: JSON-LD facts + Menu tab (SCOPED, spec written)
+**What:** Two features. (1) JSON-LD extractor: fetch each restaurant's own website (Google gives
+`websiteUri`), parse schema.org Menu/MenuItem/Offer, derive price_band + dietary_flags into
+first_party_facts (first-party, storable) to power search filters. (2) Menu tab: display Google
+`businessMenus` live on the detail screen (view-only, never stored). Enrichment runs via an
+activity-driven queue drained by an hourly cron that only processes places in their local 2-5am
+window (off-peak per timezone via Google `utcOffsetMinutes`).
+**Why:** Google lacks per-person price and precise dietary. JSON-LD gives structured prices for
+the subset of sites that publish it; the Menu tab lets users read the menu regardless.
+**Pros:** Deterministic (no OCR/LLM), first-party for search, compliant for view; amortized cost;
+freshness-gated and never overwrites curated prices.
+**Cons:** Partial coverage (structured sites only); a queue table + cron worker is real infra;
+`businessMenus` availability is unverified.
+**Context:** Full design in docs/superpowers/specs/2026-07-01-menu-enrichment-design.md. The
+first_party_facts consumer is already built (item 7). OCR/LLM/HTML fallback deferred (item 9).
+**Depends on / blocked by:** Item 7 shipped. Feature 2 depends on the item 10 businessMenus spike.
+
+## 9. Menu OCR + LLM extraction (deferred until more users/budget)
+**What:** Extend menu enrichment (item 8) to the sites JSON-LD does not cover: parse raw HTML,
+OCR image and PDF menus, and use an LLM to extract prices + dietary from messy layouts into
+first_party_facts. This is the biggest coverage lever for price/dietary SEARCH.
+**Why:** Most restaurant menus are images or unstructured pages, so JSON-LD alone leaves a large
+gap in search coverage. OCR/LLM fills it.
+**Pros:** Pushes search coverage from the structured-site subset toward most restaurants.
+**Cons:** Fragile, ongoing maintenance, OCR infra + LLM per-place cost, third-party site ToS and
+robots exposure. Not worth it pre-scale.
+**Context:** Deferred from item 8 on the founder's call ("figure out OCR and LLM later for search").
+The first_party_facts interface already accepts these rows, so this slots in without touching the
+search or consumer code.
+**Depends on / blocked by:** Item 8 shipped; meaningful user base + budget.
+
+## 10. Verify Google businessMenus field (spike)
+**What:** Confirm the Place Details (New) `businessMenus` field is real in Google's official Place
+Data Fields docs, its availability in Australia, and its SKU tier + per-call cost.
+**Why:** The Menu tab (item 8, Feature 2) displays businessMenus live. The field is currently a
+third-party-blog claim, not confirmed in Google's own docs, so the Menu tab must degrade to empty
+until this is verified.
+**Pros:** Confirms the view feature is buildable in the launch market before relying on it.
+**Cons:** Quick research/spike.
+**Context:** Google Place Data Fields docs: https://developers.google.com/maps/documentation/places/web-service/data-fields
+**Depends on / blocked by:** Nothing; do before relying on the Menu tab.

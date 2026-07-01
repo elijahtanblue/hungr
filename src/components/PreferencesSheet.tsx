@@ -207,7 +207,11 @@ export function PreferencesSheet({ groups, onClose }: { groups: { label: string;
 
 const s = StyleSheet.create({
   backdrop: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0, justifyContent: "flex-end", backgroundColor: "rgba(28,26,23,0.25)" },
-  sheet: { backgroundColor: colors.surface, borderTopLeftRadius: radius.lg, borderTopRightRadius: radius.lg, padding: space.lg, paddingBottom: space.xl, maxHeight: "90%" },
+  // Half view: opens tall enough for the filters (budget, within, rating, sort, show, open now) but
+  // stops well below the search bar instead of melting into it. The cuisine / food list sits below
+  // the fold, revealed by scrolling, so opening preferences does not dump the whole long list.
+  sheet: { backgroundColor: colors.surface, borderTopLeftRadius: radius.lg, borderTopRightRadius: radius.lg, padding: space.lg, paddingBottom: space.xl, maxHeight: "58%",
+    shadowColor: colors.ink, shadowOpacity: 0.14, shadowRadius: 16, shadowOffset: { width: 0, height: -4 }, elevation: 12 },
   body: { flexShrink: 1 },
   bodyContent: { paddingBottom: space.md },
   grab: { width: 34, height: 4, borderRadius: 99, backgroundColor: colors.hair, alignSelf: "center", marginBottom: space.md },

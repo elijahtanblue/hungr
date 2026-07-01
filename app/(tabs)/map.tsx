@@ -18,9 +18,7 @@ import { getCommunity } from "../../src/api/community";
 import { spreadOverlappingPins } from "../../src/domain/spreadPins";
 import { getPlaceGuides, annotateGuides, type PlaceGuide } from "../../src/api/guides";
 import { getFirstPartyFacts, annotateFacts, type FirstPartyFact } from "../../src/api/firstPartyFacts";
-import { runIntentQuery, type StructuredQuery } from "../../src/domain/intentQuery";
-import { OccasionChips } from "../../src/components/OccasionChips";
-import type { Occasion } from "../../src/domain/occasionPresets";
+import { enqueueMenuEnrich } from "../../src/api/menuEnrich";
 import { loadSuppressedCuisines } from "../../src/api/preferences";
 import { setUserPlaceState, clearUserPlaceState } from "../../src/api/userPlaces";
 import { saveReviewFeedback } from "../../src/api/reviewFeedback";
@@ -77,8 +75,9 @@ export default function Map() {
   const [savedPins, setSavedPins] = useState<Place[]>([]);
   const [guides, setGuides] = useState<Record<string, PlaceGuide>>({});
   const [facts, setFacts] = useState<Record<string, FirstPartyFact>>({});
-  const [activeIntent, setActiveIntent] = useState<StructuredQuery | null>(null);
-  const [activeOccasionId, setActiveOccasionId] = useState<string | null>(null);
+  // Basic vs AI search mode. The occasion presets (date night, etc.) are backend-only now; AI search
+  // (Phase 2) will parse free text into a structured query and rank via the intent engine.
+  const [aiMode, setAiMode] = useState(false);
   const {
     selected: sel,
     suppressed,
@@ -285,12 +284,15 @@ export default function Map() {
   }, [places, savedPins]);
 
   // First-party facts (curated price band, dietary flags) for the visible set, fetched in one batch
-  // and fed into the intent rule engine. Best-effort, exactly like the guide badges above.
+  // and fed into the intent rule engine. Best-effort, exactly like the guide badges above. Also
+  // nominates the search results for background menu enrichment (fire-and-forget; the server decides
+  // what actually needs work), so coverage grows as people browse.
   useEffect(() => {
     const ids = Array.from(new Set([...places, ...savedPins].map((p) => p.placeId)));
     if (ids.length === 0) return;
     let active = true;
     getFirstPartyFacts(ids).then((f) => { if (active) setFacts(f); }).catch(() => {});
+    enqueueMenuEnrich(places);
     return () => { active = false; };
   }, [places, savedPins]);
 
@@ -311,31 +313,8 @@ export default function Map() {
     setSelected(null);
     const q = searchTextForAction("typed", query);
     if (!q) return;
-    setActiveOccasionId(null);
-    setActiveIntent(null);
     setListMode("typed");
     setListQuery(q);
-    setActiveSearchText(q);
-    setPlaces([]);
-    setLoading(true);
-    lastSearchText.current = null;
-    setRefresh((n) => n + 1);
-    focusOnResults.current = true;
-    setShowList(true);
-  }
-
-  // Tapping an occasion chip runs its preset: the queryHint becomes the Google search text and the
-  // structured query drives the intent engine's ranking. Mirrors submitTypedSearch so old pins are
-  // cleared and the results sheet opens, rather than leaving stale pins under the new search.
-  function pickOccasion(occasion: Occasion | null) {
-    setSelected(null);
-    setActiveOccasionId(occasion?.id ?? null);
-    setActiveIntent(occasion?.query ?? null);
-    if (!occasion) return;
-    const q = occasion.query.queryHint;
-    setQuery(q);
-    setListMode("typed");
-    setListQuery(occasion.label);
     setActiveSearchText(q);
     setPlaces([]);
     setLoading(true);
@@ -409,8 +388,7 @@ export default function Map() {
   const enrich = (list: Place[]) => annotateFacts(annotateGuides(list, guides), facts);
   const filterVisible = (list: Place[]) => {
     const f = applyFilters(enrich(list), { selected: sel, suppressed, budgetMax, withinKm, minRating, sortBy, showState });
-    const ranked = activeIntent ? runIntentQuery(f, activeIntent).results.map((r) => r.place) : f;
-    return friendsOnly ? ranked.filter((p) => friendsBeen.has(p.placeId)) : ranked;
+    return friendsOnly ? f.filter((p) => friendsBeen.has(p.placeId)) : f;
   };
   // The MAP shows saved pins as a base layer plus the live search results on top. The LIST and
   // popup show only the live search results, so a search returns what you searched for, never your
@@ -447,9 +425,10 @@ export default function Map() {
           onPreferences={() => setShowPrefs(true)}
           onSubmit={submitTypedSearch}
           loading={loading}
+          aiMode={aiMode}
+          onToggleAi={() => setAiMode((v) => !v)}
         />
         <CuisineFilter />
-        <OccasionChips activeId={activeOccasionId} onPick={pickOccasion} />
         {(friendsBeen.size > 0 || friendsOnly) && (
           <Pressable
             onPress={() => setFriendsOnly((v) => !v)}
