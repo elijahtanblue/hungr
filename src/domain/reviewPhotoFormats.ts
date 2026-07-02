@@ -1,12 +1,16 @@
 import type { LocalReviewPhotoAsset } from "../api/reviewPhotos";
 
-export const UNSUPPORTED_REVIEW_PHOTO_MESSAGE = "Choose a JPG, PNG, or WebP photo.";
+export const UNSUPPORTED_REVIEW_PHOTO_MESSAGE = "Choose a JPG, PNG, WebP, or HEIC photo.";
 
 export const EXTENSION_BY_MIME: Record<string, string> = {
   "image/jpeg": "jpg",
   "image/jpg": "jpg",
   "image/png": "png",
   "image/webp": "webp",
+  "image/heic": "heic",
+  "image/heif": "heif",
+  "image/heic-sequence": "heics",
+  "image/heif-sequence": "heifs",
 };
 
 export const MIME_BY_EXTENSION: Record<string, string> = {
@@ -14,6 +18,12 @@ export const MIME_BY_EXTENSION: Record<string, string> = {
   jpeg: "image/jpeg",
   png: "image/png",
   webp: "image/webp",
+  heic: "image/heic",
+  heif: "image/heif",
+  heicf: "image/heic",
+  heics: "image/heic-sequence",
+  heifs: "image/heif-sequence",
+  hif: "image/heif",
 };
 
 export function normalizedMimeType(value?: string | null): string | null {

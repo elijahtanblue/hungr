@@ -1,5 +1,6 @@
 import {
   cleanTikTokTitle,
+  hashtagsFromTitle,
   isSafeTikTokUrl,
   shapeCandidates,
   videoIdFromUrl,
@@ -25,6 +26,12 @@ Deno.test("videoIdFromUrl extracts TikTok post ids when present", () => {
 Deno.test("cleanTikTokTitle removes hashtags and collapses whitespace", () => {
   const out = cleanTikTokTitle("Best steak night at The Gidley   #sydneyfood #steak");
   if (out !== "Best steak night at The Gidley") throw new Error(`unexpected title: ${out}`);
+});
+
+Deno.test("hashtagsFromTitle extracts clean hashtags as TikTok taste signals", () => {
+  const out = hashtagsFromTitle("Best steak night #SydneyFood #steak #steak #ThisTagIsWayTooLongForTasteTracking");
+  const expected = JSON.stringify(["sydneyfood", "steak"]);
+  if (JSON.stringify(out) !== expected) throw new Error(`unexpected hashtags: ${JSON.stringify(out)}`);
 });
 
 Deno.test("shapeCandidates marks exact caption mentions as recommended", () => {

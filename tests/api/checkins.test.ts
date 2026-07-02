@@ -1,4 +1,4 @@
-import { checkIn, getVisitCount, getVisitStatus } from "../../src/api/checkins";
+import { checkIn, getVisitCount, getVisitStatus, getCheckedInPlaceIds } from "../../src/api/checkins";
 import { supabase } from "../../src/lib/supabase";
 
 jest.mock("../../src/lib/supabase", () => ({
@@ -6,6 +6,23 @@ jest.mock("../../src/lib/supabase", () => ({
 }));
 
 beforeEach(() => jest.clearAllMocks());
+
+test("getCheckedInPlaceIds returns the distinct places the signed-in user checked into", async () => {
+  (supabase.auth.getUser as jest.Mock).mockResolvedValue({ data: { user: { id: "u1" } } });
+  const eq = jest.fn().mockResolvedValue({ data: [{ place_id: "p1" }, { place_id: "p1" }, { place_id: "p2" }], error: null });
+  const select = jest.fn().mockReturnValue({ eq });
+  (supabase.from as jest.Mock).mockReturnValue({ select });
+
+  await expect(getCheckedInPlaceIds()).resolves.toEqual(["p1", "p2"]);
+  expect(supabase.from).toHaveBeenCalledWith("check_ins");
+  expect(eq).toHaveBeenCalledWith("user_id", "u1");
+});
+
+test("getCheckedInPlaceIds returns nothing when signed out", async () => {
+  (supabase.auth.getUser as jest.Mock).mockResolvedValue({ data: { user: null } });
+  await expect(getCheckedInPlaceIds()).resolves.toEqual([]);
+  expect(supabase.from).not.toHaveBeenCalled();
+});
 
 test("getVisitCount returns the row count scoped to the signed-in user and place", async () => {
   (supabase.auth.getUser as jest.Mock).mockResolvedValue({ data: { user: { id: "u1" } } });

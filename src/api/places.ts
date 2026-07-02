@@ -12,6 +12,7 @@ type PlaceFilters = {
   minRating?: number | null;
   sortBy?: SortBy;
   showState?: ShowState;
+  preserveOrder?: boolean;
 };
 
 const PRICE_RANK: Record<PriceLevel, 1 | 2 | 3 | 4> = {
@@ -45,6 +46,7 @@ export function applyFilters(
     if (f.withinKm && typeof p.distanceMeters === "number" && p.distanceMeters > f.withinKm * 1000) return false;
     return true;
   });
+  if (f.preserveOrder) return filtered;
   const sortBy = f.sortBy ?? "rating";
   return [...filtered].sort((a, b) => {
     if (sortBy === "distance") return finiteOrLast(a.distanceMeters) - finiteOrLast(b.distanceMeters);
@@ -147,7 +149,7 @@ export async function searchNearbyPage(
   lat: number,
   lng: number,
   query: string,
-  options: { radiusMeters?: number; openNow?: boolean; pageToken?: string } = {},
+  options: { radiusMeters?: number; openNow?: boolean; pageToken?: string; searchKind?: "typed" | "nearby" } = {},
 ): Promise<{ places: Place[]; nextPageToken?: string }> {
   const body = {
     lat,
@@ -156,6 +158,7 @@ export async function searchNearbyPage(
     ...(options.radiusMeters ? { radiusMeters: options.radiusMeters } : {}),
     ...(options.openNow ? { openNow: true } : {}),
     ...(options.pageToken ? { pageToken: options.pageToken } : {}),
+    ...(options.searchKind ? { searchKind: options.searchKind } : {}),
   };
   const { data, error } = await supabase.functions.invoke("places-proxy", { body });
   if (error) throw error;

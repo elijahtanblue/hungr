@@ -5,7 +5,13 @@ import { supabase } from "../lib/supabase";
 // can only ever learn that someone has BEEN to a place, never their avoid or want-to-go.
 
 export type UserSummary = { id: string; username: string | null; displayName: string | null };
-export type MyProfile = { username: string | null; displayName: string | null; sharesActivity: boolean };
+export type MyProfile = {
+  username: string | null;
+  displayName: string | null;
+  sharesActivity: boolean;
+  bio: string | null;
+  avatarUrl: string | null;
+};
 
 // Your own profile. Read directly (own-row RLS allows it) rather than via an RPC.
 export async function getMyProfile(): Promise<MyProfile | null> {
@@ -13,7 +19,7 @@ export async function getMyProfile(): Promise<MyProfile | null> {
   if (!u.user) return null;
   const { data, error } = await supabase
     .from("profiles")
-    .select("username, display_name, shares_activity")
+    .select("username, display_name, shares_activity, bio, avatar_url")
     .eq("id", u.user.id)
     .single();
   if (error || !data) return null;
@@ -21,7 +27,21 @@ export async function getMyProfile(): Promise<MyProfile | null> {
     username: data.username ?? null,
     displayName: data.display_name ?? null,
     sharesActivity: data.shares_activity ?? true,
+    bio: data.bio ?? null,
+    avatarUrl: data.avatar_url ?? null,
   };
+}
+
+// Save editable profile fields (bio and/or avatar). Only provided fields are written. Own-row RLS.
+export async function updateMyProfile(fields: { bio?: string | null; avatarUrl?: string | null }): Promise<boolean> {
+  const { data: u } = await supabase.auth.getUser();
+  if (!u.user) return false;
+  const patch: Record<string, unknown> = {};
+  if (fields.bio !== undefined) patch.bio = fields.bio?.trim() ? fields.bio.trim().slice(0, 300) : null;
+  if (fields.avatarUrl !== undefined) patch.avatar_url = fields.avatarUrl;
+  if (Object.keys(patch).length === 0) return true;
+  const { error } = await supabase.from("profiles").update(patch).eq("id", u.user.id);
+  return !error;
 }
 
 // Toggle whether followers can see where you have been. friend_beens enforces this server side.

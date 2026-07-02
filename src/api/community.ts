@@ -1,5 +1,6 @@
 import { supabase } from "../lib/supabase";
 import { getPlacePins } from "./placePins";
+import { recordReviewTagTaste } from "./tasteTracking";
 import type { PlaceState } from "../domain/types";
 
 // First party content for a place: hungr community reviews and fact tags. This is our owned data,
@@ -17,6 +18,7 @@ export type CommunityReview = {
   upvotes: number;
   mineUpvoted: boolean;
   createdAt: string;
+  edited: boolean;
   photos: ReviewPhoto[];
 };
 
@@ -60,6 +62,7 @@ type CommunityReviewRow = {
   body: string;
   rating?: number | null;
   created_at: string;
+  edited?: boolean | null;
   is_mine?: boolean | null;
   author_id?: string | null;
   author_username?: string | null;
@@ -138,6 +141,7 @@ async function mapReviewRow(row: CommunityReviewRow): Promise<CommunityReview> {
     upvotes: row.upvotes ?? 0,
     mineUpvoted: !!row.mine_upvoted,
     createdAt: row.created_at,
+    edited: !!row.edited,
     photos: await signReviewPhotos(row.id, reviewPhotosFromRow(row)),
   };
 }
@@ -322,5 +326,7 @@ export async function addPlaceTag(placeId: string, rawTag: string): Promise<bool
     .from("place_tags")
     .insert({ place_id: placeId, tag, created_by: data.user.id });
   if (res.error) throw res.error;
+  // The tag describes the place AND reveals the tagger's taste, so feed it to the taste profile too.
+  recordReviewTagTaste(placeId, tag).catch(() => {});
   return true;
 }

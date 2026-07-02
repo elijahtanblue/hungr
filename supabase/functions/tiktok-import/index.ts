@@ -13,6 +13,7 @@ type TikTokSource = {
   creator: string | null;
   creatorUrl: string | null;
   title: string;
+  hashtags: string[];
 };
 
 export type TikTokPlaceCandidate = {
@@ -84,6 +85,18 @@ export function cleanTikTokTitle(title: string): string {
     .replace(/\s+/g, " ")
     .trim()
     .slice(0, 220);
+}
+
+export function hashtagsFromTitle(title: string): string[] {
+  const out: string[] = [];
+  const matches = title.matchAll(/#([\p{L}\p{N}_]+)/gu);
+  for (const match of matches) {
+    const tag = normalize(match[1]).replace(/\s+/g, "");
+    if (tag.length < 2 || tag.length > 32) continue;
+    if (!out.includes(tag)) out.push(tag);
+    if (out.length >= 10) break;
+  }
+  return out;
 }
 
 function normalize(value: string): string {
@@ -194,13 +207,15 @@ async function getOembed(url: string): Promise<TikTokSource> {
   const res = await fetch(`https://www.tiktok.com/oembed?url=${encodeURIComponent(url)}`);
   if (!res.ok) throw new Error("TikTok oEmbed failed");
   const data = await res.json();
-  const title = cleanTikTokTitle(typeof data?.title === "string" ? data.title : "");
+  const rawTitle = typeof data?.title === "string" ? data.title : "";
+  const title = cleanTikTokTitle(rawTitle);
   return {
     url,
     videoId: videoIdFromUrl(url),
     creator: typeof data?.author_name === "string" ? data.author_name : null,
     creatorUrl: typeof data?.author_url === "string" ? data.author_url : null,
     title,
+    hashtags: hashtagsFromTitle(rawTitle),
   };
 }
 
@@ -244,7 +259,7 @@ export default async function handler(req: Request): Promise<Response> {
       typeof lng === "number" && Number.isFinite(lng) ? lng : undefined,
     );
     const candidates = shapeCandidates(rawPlaces, source.title);
-    return new Response(JSON.stringify({ source, dishTags: dishTagsFromTitle(source.title), candidates }), {
+    return new Response(JSON.stringify({ source, dishTags: source.hashtags, candidates }), {
       headers: { "Content-Type": "application/json" },
     });
   } catch {

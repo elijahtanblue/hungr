@@ -1,4 +1,4 @@
-import { buildTextSearchBody, shapePlace } from "./index.ts";
+import { buildTextSearchBody, isFoodPlace, rankPlacesForSearch, shapePlace } from "./index.ts";
 
 Deno.test("shapePlace keeps display-safe fields, derives a coarse cuisine, drops review text", () => {
   const raw = {
@@ -27,6 +27,27 @@ Deno.test("shapePlace keeps display-safe fields, derives a coarse cuisine, drops
   if (!out.attribution) throw new Error("attribution must be present");
   if (JSON.stringify(out).includes("secret review body")) {
     throw new Error("review text must never leave the proxy");
+  }
+});
+
+Deno.test("isFoodPlace rejects non-food businesses returned by broad text search", () => {
+  const datingService = {
+    id: "p-dating",
+    displayName: { text: "It's Just Lunch San Francisco" },
+    location: { latitude: 37.8, longitude: -122.4 },
+    primaryType: "dating_service",
+    types: ["dating_service", "point_of_interest", "establishment"],
+  };
+
+  if (isFoodPlace(datingService)) throw new Error("dating services must not pass the food gate");
+});
+
+Deno.test("isFoodPlace allows restaurant and cafe-like Google food types", () => {
+  if (!isFoodPlace({ primaryType: "restaurant", types: ["restaurant"] })) {
+    throw new Error("generic restaurants should pass the food gate");
+  }
+  if (!isFoodPlace({ primaryType: "cafe", types: ["cafe", "food"] })) {
+    throw new Error("cafes should pass the food gate");
   }
 });
 
@@ -169,6 +190,47 @@ Deno.test("buildTextSearchBody only sets openNow when requested", () => {
 
   const on = buildTextSearchBody(-33.87, 151.21, "food", undefined, undefined, true);
   if (on.openNow !== true) throw new Error("openNow should be set when requested");
+});
+
+Deno.test("buildTextSearchBody can restrict text search to the local area and type", () => {
+  const body = buildTextSearchBody(37.79, -122.4, "hot pot restaurant", undefined, 8000, false, {
+    id: "hot-pot-local",
+    endpoint: "text",
+    textQuery: "hot pot restaurant",
+    locationMode: "restriction",
+    includedType: "hot_pot_restaurant",
+    rankPreference: "DISTANCE",
+  });
+
+  if (!("locationRestriction" in body)) throw new Error("local search should use a restriction");
+  if ("locationBias" in body) throw new Error("local search should not also use a bias");
+  if (body.includedType !== "hot_pot_restaurant") throw new Error("includedType missing");
+  if (body.rankPreference !== "DISTANCE") throw new Error("rank preference missing");
+});
+
+Deno.test("rankPlacesForSearch prefers a nearby branch over a far exact-looking branch", () => {
+  const far = shapePlace({
+    id: "far",
+    displayName: { text: "Nan Hot Pot & Bar" },
+    location: { latitude: 33.02, longitude: -96.7 },
+    rating: 4.8,
+    userRatingCount: 900,
+    primaryType: "restaurant",
+    types: ["restaurant", "food"],
+  });
+  const near = shapePlace({
+    id: "near",
+    displayName: { text: "Nan Hotpot SF" },
+    location: { latitude: 37.8, longitude: -122.41 },
+    rating: 4.7,
+    userRatingCount: 120,
+    primaryType: "hot_pot_restaurant",
+    types: ["hot_pot_restaurant", "restaurant", "food"],
+  });
+
+  const out = rankPlacesForSearch([far, near], 37.79, -122.4, "Nan Hot pot");
+
+  if (out[0].placeId !== "near") throw new Error("nearby branch should win");
 });
 
 Deno.test("shapePlace tags Bubble Tea from Google's category, not the place name", () => {

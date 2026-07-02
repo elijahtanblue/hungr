@@ -401,6 +401,9 @@ Supabase's cloud and build a real app. Here is the map of what that involves.
    npx supabase functions deploy place-photo
    npx supabase functions deploy place-pins
    npx supabase functions deploy grounding
+   npx supabase functions deploy intent-parse
+   npx supabase functions deploy ai-chat
+   npx supabase functions deploy tiktok-import
    npx supabase functions deploy review-photo-moderate
    npx supabase functions deploy translate-review
    npx supabase secrets set GOOGLE_PLACES_KEY=... GOOGLE_VISION_KEY=... GOOGLE_TRANSLATE_KEY=... GEMINI_KEY=...
@@ -566,6 +569,12 @@ The privacy rule: this should import **only the handle/profile link by default**
 followers, DMs, or inferred interests. If you ever import creator content from TikTok or Instagram,
 treat that as a separate feature with its own consent screen, platform review, and terms review.
 
+Personal TikTok capture is separate from account linking. The current `tiktok-import` function lets
+a user paste a TikTok URL, reads public oEmbed metadata, searches candidate places, and saves only
+after the user confirms the place. That path does not require TikTok Login Kit. Feed or creator
+ingestion should wait until the TikTok developer app exists and the requested scopes have passed
+platform review.
+
 ### 8i. Ingesting food guides (Michelin stars, hats, Bib Gourmand)
 
 hungr can show a small ribbon badge on the map (and a chip on the place page) for restaurants in a
@@ -612,6 +621,46 @@ can be filled by a scheduled job instead of by hand. Until then, hand ingest is 
 
 ---
 
+### 8j. Reports and moderation (Discord alerts)
+
+Users can report three things, and each one lands as a row in a Supabase table (never in your
+email):
+
+- **Reported reviews** go to `review_reports`.
+- **Reported photos** go to `review_photo_reports`. (A single report only *records* a complaint; it
+  no longer hides the photo, so one user can't censor another. Hiding is a manual action you take.)
+- **Bug reports** go to `bug_reports`.
+
+You can always browse these in the Supabase **Table editor**. But so you actually hear about them,
+hungr posts every new report to a **Discord channel** via a webhook. To turn this on:
+
+**Step 1: make a Discord webhook.** In your Discord server, open **Server Settings → Integrations →
+Webhooks → New Webhook**, pick the channel (e.g. `#reports`), and **Copy Webhook URL**. It looks
+like `https://discord.com/api/webhooks/123456/abcdef...`.
+
+**Step 2: store it as a secret.** In the Supabase dashboard **SQL Editor**, run once:
+
+```sql
+select vault.create_secret('https://discord.com/api/webhooks/123456/abcdef...', 'discord_reports_webhook');
+```
+
+That's it. The next report (review, photo, or bug) shows up in your Discord channel automatically.
+The alert includes the report type, the id, and the reason (or the bug text), so you can jump into
+the Table editor to act on it. If you ever want to stop the alerts, delete the secret:
+
+```sql
+select vault.update_secret((select id from vault.secrets where name = 'discord_reports_webhook'), '');
+```
+
+An empty or missing secret makes the alert a no-op; reports still get saved to their tables.
+
+**Acting on a report:** to hide a photo or review after reviewing a complaint, update its status in
+the Table editor (photos: set `review_photos.status` to `hidden`; reviews: delete the row or handle
+per your policy). This is deliberately a manual, founder-only action, not something a single user
+report can trigger.
+
+---
+
 ## 9. Your domain: usehungr.app
 
 You own `usehungr.app`. It is used in a few places:
@@ -639,16 +688,20 @@ Run these from inside the `hungr` folder. Start Docker first for anything backen
 | Run the app's tests | `npm test` |
 | Run the database security tests | `npx supabase status` then `deno test --allow-net --allow-env supabase/tests/rls.test.ts` |
 | Stop the local backend | `npx supabase stop` |
-| Google Bridge|    npx supabase functions deploy places-proxy
+| Google Bridge|
+   npx supabase db push
+   npx supabase functions deploy places-proxy
    npx supabase functions deploy place-details
    npx supabase functions deploy place-names
    npx supabase functions deploy grounding
-   npx supabase db push
    npx supabase functions deploy place-details
    npx supabase functions deploy place-photo
    npx supabase functions deploy place-pins
    npx supabase functions deploy review-photo-moderate
    npx supabase functions deploy translate-review
+   npx supabase functions deploy intent-parse
+   npx supabase functions deploy ai-chat
+   npx supabase functions deploy tiktok-import
 |Linking database and push| npx supabase link --project-ref <your project ref>
    npx supabase db push
 

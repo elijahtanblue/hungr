@@ -26,6 +26,13 @@ test("tapping Sign out calls supabase signOut", async () => {
   expect(supabase.auth.signOut).toHaveBeenCalled();
 });
 
+test("Edit profile navigates to the profile edit screen", async () => {
+  const { router } = require("expo-router");
+  await render(<Settings />);
+  await fireEvent.press(screen.getByText("Edit profile"));
+  expect(router.push).toHaveBeenCalledWith("/profile/edit");
+});
+
 test("Report a bug navigates to the bug report screen", async () => {
   const { router } = require("expo-router");
   await render(<Settings />);

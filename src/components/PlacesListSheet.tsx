@@ -18,8 +18,8 @@ function priceLabel(level?: string): string {
 
 export function PlacesListSheet({
   places, onSelect, onClose, title = "Food near you", loading = false,
-  hasMore = false, loadingMore = false, onLoadMore,
-}: { places: Place[]; onSelect: (p: Place) => void; onClose: () => void; title?: string; loading?: boolean; hasMore?: boolean; loadingMore?: boolean; onLoadMore?: () => void }) {
+  hasMore = false, loadingMore = false, onLoadMore, notes,
+}: { places: Place[]; onSelect: (p: Place) => void; onClose: () => void; title?: string; loading?: boolean; hasMore?: boolean; loadingMore?: boolean; onLoadMore?: () => void; notes?: Record<string, string> }) {
   return (
     <View style={s.backdrop}>
       <Pressable style={StyleSheet.absoluteFill} onPress={onClose} accessibilityLabel="Close list" />
@@ -50,6 +50,7 @@ export function PlacesListSheet({
           >
             {places.map((p) => {
               const price = priceLabel(p.priceLevel);
+              const note = notes?.[p.placeId];
               return (
                 <Pressable key={p.placeId} style={s.row} onPress={() => onSelect(p)} accessibilityRole="button" accessibilityLabel={`Open ${p.name}`}>
                   <View style={s.info}>
@@ -57,6 +58,7 @@ export function PlacesListSheet({
                     {(p.cuisines.length > 0 || price) && (
                       <Text style={s.meta} numberOfLines={1}>{[p.cuisines.join(" · "), price].filter(Boolean).join("  ·  ")}</Text>
                     )}
+                    {note && <Text style={s.note} numberOfLines={1}>{note}</Text>}
                   </View>
                   {p.rating !== undefined && (
                     <View style={s.rate}>
@@ -89,6 +91,7 @@ const s = StyleSheet.create({
   info: { flex: 1 },
   name: { fontSize: 16, fontWeight: "700", color: colors.ink },
   meta: { fontSize: 13, color: colors.muted, marginTop: 2 },
+  note: { fontSize: 13, color: colors.accentPress, fontWeight: "700", marginTop: 3 },
   rate: { flexDirection: "row", alignItems: "center", gap: 3 },
   rateTxt: { fontSize: 15, fontWeight: "800", color: colors.accentPress },
 });

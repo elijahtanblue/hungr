@@ -29,7 +29,10 @@ function errorMessage(error: unknown, fallback: string): string {
 }
 
 function photoAttachErrorMessage(error: unknown): string {
-  const message = errorMessage(error, "Review posted, but the photos could not be attached.");
+  const fallback = "Review posted, but the photos could not be attached.";
+  const message = errorMessage(error, fallback).trim();
+  if (!message || message === fallback) return fallback;
+  // These already read as complete, user-facing sentences.
   if (
     message === UNSUPPORTED_REVIEW_PHOTO_MESSAGE
     || message.includes("Vision")
@@ -38,7 +41,9 @@ function photoAttachErrorMessage(error: unknown): string {
   ) {
     return message;
   }
-  return "Review posted, but the photos could not be attached.";
+  // Surface the real cause instead of hiding it behind a generic string, so photo failures are
+  // diagnosable in the field rather than silently collapsing to "could not be attached".
+  return `Review posted, but the photo could not be attached: ${message}`;
 }
 
 // First party content. Golden world, the hungr moat. Kept visually separate from the Google
@@ -119,7 +124,7 @@ export function CommunityBlock({
       const supported = photos.filter((photo) => !reviewPhotoFormatError(photo)).slice(0, 4);
       setSelectedPhotos(supported);
       if (supported.length < photos.length) {
-        setError("Choose a JPG, PNG, or WebP photo.");
+        setError(UNSUPPORTED_REVIEW_PHOTO_MESSAGE);
       }
     } catch {
       setError("Could not open photos. Try again.");
@@ -333,7 +338,7 @@ export function CommunityBlock({
                 <Pressable disabled={!canOpen} onPress={() => canOpen && onOpenProfile!(r.userId!)} style={s.authorWrap} accessibilityRole={canOpen ? "button" : undefined}>
                   <Text style={[s.author, canOpen && s.authorLink]} numberOfLines={1}>{author}</Text>
                 </Pressable>
-                <Text style={s.time}>{formatDate(r.createdAt)}</Text>
+                <Text style={s.time}>{formatDate(r.createdAt)}{r.edited ? " · edited" : ""}</Text>
               </View>
               <View style={s.reviewMeta}>
                 {r.rating !== undefined && <Text style={s.rating}>{"★"} {formatRating(r.rating)}</Text>}

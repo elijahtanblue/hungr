@@ -1,4 +1,4 @@
-import { nearbySearchRegion, listTitleForSearchMode, searchTextForAction } from "../../src/domain/mapSearch";
+import { nearbySearchRegion, listTitleForSearchMode, searchTextForAction, queryAfterSubmit } from "../../src/domain/mapSearch";
 
 test("typed search uses the submitted query and a search-results title", () => {
   expect(searchTextForAction("typed", "Sandoitchi Cafe Sydney")).toBe("Sandoitchi Cafe Sydney");
@@ -15,4 +15,9 @@ test("nearby food searches the current map area instead of the device location",
   const deviceArea = { latitude: -37.81, longitude: 144.96, latitudeDelta: 0.05, longitudeDelta: 0.05 };
 
   expect(nearbySearchRegion(travelArea, deviceArea)).toBe(travelArea);
+});
+
+test("AI search clears the prompt after submission while typed search keeps it", () => {
+  expect(queryAfterSubmit("ai", "date night")).toBe("");
+  expect(queryAfterSubmit("typed", "Sandoitchi")).toBe("Sandoitchi");
 });

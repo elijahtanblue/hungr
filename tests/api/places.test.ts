@@ -50,6 +50,17 @@ test("applyFilters applies budget, distance, show-state, and sorting controls", 
   expect(out.map((p) => p.placeId)).toEqual(["mid-near"]);
 });
 
+test("applyFilters can preserve upstream search relevance order", () => {
+  const rich: Place[] = [
+    { placeId: "best-match", name: "Best Match", lat: 0, lng: 0, cuisines: ["Hot Pot"], rating: 4.1 },
+    { placeId: "higher-rated", name: "Higher Rated", lat: 0, lng: 0, cuisines: ["Hot Pot"], rating: 4.9 },
+  ];
+
+  const out = applyFilters(rich, { selected: [], suppressed: [], preserveOrder: true });
+
+  expect(out.map((p) => p.placeId)).toEqual(["best-match", "higher-rated"]);
+});
+
 test("applyFilters hides places below the minimum rating", () => {
   const rich: Place[] = [
     { placeId: "top", name: "Top", lat: 0, lng: 0, cuisines: ["Thai"], rating: 4.6 },
@@ -142,6 +153,20 @@ test("searchNearbyPage returns one page plus the token to load the next", async 
   });
   expect(out.places.map((p: any) => p.placeId)).toEqual(["a"]);
   expect(out.nextPageToken).toBe("next-1");
+});
+
+test("searchNearbyPage forwards the search kind to the proxy", async () => {
+  (supabase.functions.invoke as jest.Mock).mockResolvedValue({
+    data: { places: [] },
+    error: null,
+  });
+
+  const { searchNearbyPage } = require("../../src/api/places");
+  await searchNearbyPage(1, 2, "Hot pot", { searchKind: "typed" });
+
+  expect(supabase.functions.invoke).toHaveBeenCalledWith("places-proxy", {
+    body: { lat: 1, lng: 2, query: "Hot pot", searchKind: "typed" },
+  });
 });
 
 test("mergePlaces keeps existing pins and preserves first party state", () => {

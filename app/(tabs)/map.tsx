@@ -22,12 +22,18 @@ import { enqueueMenuEnrich } from "../../src/api/menuEnrich";
 import { loadSuppressedCuisines } from "../../src/api/preferences";
 import { setUserPlaceState, clearUserPlaceState } from "../../src/api/userPlaces";
 import { saveReviewFeedback } from "../../src/api/reviewFeedback";
-import { checkIn, getVisitStatus, type VisitStatus } from "../../src/api/checkins";
+import { checkIn, getVisitStatus, getCheckedInPlaceIds, type VisitStatus } from "../../src/api/checkins";
 import { getSavedPlacePins } from "../../src/api/savedPins";
 import { friendBeens, ensureFollowingFounder } from "../../src/api/social";
 import { useFilters } from "../../src/store/useFilters";
 import { CUISINE_GROUPS } from "../../src/domain/cuisines";
-import { nearbySearchRegion, listTitleForSearchMode, searchTextForAction, type MapSearchMode } from "../../src/domain/mapSearch";
+import { nearbySearchRegion, listTitleForSearchMode, queryAfterSubmit, searchTextForAction, type MapSearchMode } from "../../src/domain/mapSearch";
+import { parseIntent } from "../../src/api/intentSearch";
+import { recordSearchTasteEvent } from "../../src/api/tasteTracking";
+import { getFavoriteCuisines } from "../../src/api/onboarding";
+import { runIntentQuery, type StructuredQuery } from "../../src/domain/intentQuery";
+import { intentReason } from "../../src/domain/intentReason";
+import { tasteRank, tasteNotes } from "../../src/domain/tasteScore";
 import { colors, space } from "../../src/theme";
 import type { Place, PlaceState } from "../../src/domain/types";
 
@@ -75,9 +81,16 @@ export default function Map() {
   const [savedPins, setSavedPins] = useState<Place[]>([]);
   const [guides, setGuides] = useState<Record<string, PlaceGuide>>({});
   const [facts, setFacts] = useState<Record<string, FirstPartyFact>>({});
-  // Basic vs AI search mode. The occasion presets (date night, etc.) are backend-only now; AI search
-  // (Phase 2) will parse free text into a structured query and rank via the intent engine.
-  const [aiMode, setAiMode] = useState(false);
+  // Basic vs AI search mode. In AI mode the free-text query is parsed (server-side, thin) into a
+  // structured query and the deterministic intent engine ranks results with a one-line reason each.
+  // The in-bar AI intent search is dormant: the sparkle now opens the hungrAI conversation instead.
+  // The parseIntent path (submitAiSearch / structured results) is kept intact for possible reuse.
+  const [aiMode] = useState(false);
+  const [structured, setStructured] = useState<StructuredQuery | null>(null);
+  // Behavioral, opt-in taste signal: the cuisines the user picked at onboarding. Combined with
+  // friends' beens and the user's own check-ins to gently rank basic-mode results. Never demographic.
+  const [favoriteCuisines, setFavoriteCuisines] = useState<string[]>([]);
+  const [checkedIn, setCheckedIn] = useState<Set<string>>(new Set());
   const {
     selected: sel,
     suppressed,
@@ -121,6 +134,16 @@ export default function Map() {
   // Places friends (and people you follow) have been, to power the "Friends Been" filter.
   useEffect(() => {
     friendBeens().then((b) => setFriendsBeen(new Set(b.map((x) => x.placeId)))).catch(() => {});
+  }, []);
+
+  // The user's own onboarding cuisine picks, for opt-in taste ranking.
+  useEffect(() => {
+    getFavoriteCuisines().then(setFavoriteCuisines).catch(() => {});
+  }, []);
+
+  // Places the user has checked into, a behavioral taste signal fed into ranking.
+  useEffect(() => {
+    getCheckedInPlaceIds().then((ids) => setCheckedIn(new Set(ids))).catch(() => {});
   }, []);
 
   // The user's own saved / imported places, resolved to pins so they always show on the map,
@@ -205,7 +228,7 @@ export default function Map() {
     const id = ++reqId.current;
     const searchText = activeSearchText || "food";
     setLoading(true);
-    searchNearbyPage(region.latitude, region.longitude, searchText, { radiusMeters: withinKm * 1000, openNow })
+    searchNearbyPage(region.latitude, region.longitude, searchText, { radiusMeters: withinKm * 1000, openNow, searchKind: listMode })
       .then(async ({ places: page, nextPageToken }) => {
         const result = await hydratePlaces(page);
         if (id !== reqId.current) return; // ignore stale responses
@@ -231,7 +254,7 @@ export default function Map() {
         let token: string | undefined = nextPageToken;
         for (let pageIndex = 0; pageIndex < BACKGROUND_PLACE_PAGES && token && id === reqId.current; pageIndex++) {
           try {
-            const more = await searchNearbyPage(region.latitude, region.longitude, searchText, { radiusMeters: withinKm * 1000, openNow, pageToken: token });
+            const more = await searchNearbyPage(region.latitude, region.longitude, searchText, { radiusMeters: withinKm * 1000, openNow, pageToken: token, searchKind: listMode });
             const moreResult = await hydratePlaces(more.places);
             if (id !== reqId.current) return;
             setPlaces((prev) => mergePlaces(prev, moreResult));
@@ -261,7 +284,7 @@ export default function Map() {
     // search (pan or type) is discarded instead of merging stale-query pins into fresh results.
     const id = reqId.current;
     setLoadingMore(true);
-    searchNearbyPage(region.latitude, region.longitude, activeSearchText || "food", { radiusMeters: withinKm * 1000, openNow, pageToken: token })
+    searchNearbyPage(region.latitude, region.longitude, activeSearchText || "food", { radiusMeters: withinKm * 1000, openNow, pageToken: token, searchKind: listMode })
       .then(async ({ places: page, nextPageToken }) => {
         const result = await hydratePlaces(page);
         if (id !== reqId.current) return;
@@ -309,9 +332,9 @@ export default function Map() {
     }));
   }
 
-  function submitTypedSearch() {
+  function startSearch(text: string) {
     setSelected(null);
-    const q = searchTextForAction("typed", query);
+    const q = text.trim();
     if (!q) return;
     setListMode("typed");
     setListQuery(q);
@@ -324,8 +347,34 @@ export default function Map() {
     setShowList(true);
   }
 
+  function submitTypedSearch() {
+    setStructured(null);
+    startSearch(searchTextForAction("typed", query));
+  }
+
+  // AI search: parse the free text into a structured query server-side (thin parser), then search
+  // Google with the cleaned queryHint and let the intent engine rank. Fails open to a plain search.
+  async function submitAiSearch() {
+    const raw = query.trim();
+    if (!raw) return;
+    setLoading(true);
+    const sq = await parseIntent(raw);
+    setStructured(sq);
+    // Record the structured facets as a behavioral taste signal (server no-ops if the user has
+    // opted out of personalization). Fire-and-forget, never blocks the search.
+    recordSearchTasteEvent({ cuisines: sq.cuisines, dietary: sq.dietary, priceBand: sq.priceBand }).catch(() => {});
+    startSearch(sq.queryHint || raw);
+    setQuery(queryAfterSubmit("ai", query));
+  }
+
+  function submitSearch() {
+    if (aiMode) submitAiSearch();
+    else submitTypedSearch();
+  }
+
   function findFoodNearMe() {
     setSelected(null);
+    setStructured(null);
     setListMode("nearby");
     setListQuery("");
     // People tapping "find food near me" want somewhere open right now, so default to open-now.
@@ -386,8 +435,8 @@ export default function Map() {
   // first-party facts (price band, dietary tags). Annotating after the fact, as the map used to,
   // would leave the engine blind to those signals.
   const enrich = (list: Place[]) => annotateFacts(annotateGuides(list, guides), facts);
-  const filterVisible = (list: Place[]) => {
-    const f = applyFilters(enrich(list), { selected: sel, suppressed, budgetMax, withinKm, minRating, sortBy, showState });
+  const filterVisible = (list: Place[], preserveOrder = false) => {
+    const f = applyFilters(enrich(list), { selected: sel, suppressed, budgetMax, withinKm, minRating, sortBy, showState, preserveOrder });
     return friendsOnly ? f.filter((p) => friendsBeen.has(p.placeId)) : f;
   };
   // The MAP shows saved pins as a base layer plus the live search results on top. The LIST and
@@ -395,7 +444,22 @@ export default function Map() {
   // saved places. Co-located pins are fanned out so a stacked restaurant is still tappable.
   const merged = mergePlaces(savedPins, places);
   const mapVisible = spreadOverlappingPins(filterVisible(merged));
-  const listVisible = filterVisible(places);
+
+  // The LIST is ranked and annotated. In AI mode the intent engine reorders by the parsed query and
+  // gives each result a one-line reason. Otherwise the opt-in taste signal (friends' beens + your
+  // onboarding cuisines) gently nudges order and labels why a place surfaced.
+  const filteredList = filterVisible(places, listMode === "typed");
+  const tasteCtx = { favoriteCuisines, friendsBeen, checkedIn };
+  let listVisible = filteredList;
+  const listNotes: Record<string, string> = {};
+  if (aiMode && structured) {
+    const outcome = runIntentQuery(filteredList, structured);
+    listVisible = outcome.results.map((r) => r.place);
+    for (const r of outcome.results) listNotes[r.place.placeId] = intentReason(r, structured);
+  } else {
+    listVisible = tasteRank(filteredList, tasteCtx);
+    Object.assign(listNotes, tasteNotes(listVisible, tasteCtx));
+  }
   const currentSelected = selected ? merged.find((p) => p.placeId === selected.placeId) ?? selected : null;
 
   return (
@@ -423,10 +487,9 @@ export default function Map() {
           value={query}
           onChange={setQuery}
           onPreferences={() => setShowPrefs(true)}
-          onSubmit={submitTypedSearch}
+          onSubmit={submitSearch}
           loading={loading}
-          aiMode={aiMode}
-          onToggleAi={() => setAiMode((v) => !v)}
+          onOpenAssistant={() => router.push("/ai-chat")}
         />
         <CuisineFilter />
         {(friendsBeen.size > 0 || friendsOnly) && (
@@ -468,9 +531,13 @@ export default function Map() {
           dineIn={cardInfo.dineIn}
           delivery={cardInfo.delivery}
           onCheckIn={() => {
-            checkIn(currentSelected.placeId)
+            const placeId = currentSelected.placeId;
+            checkIn(placeId)
               .then((status) => {
-                if (status) setVisitStatus({ count: status.count, checkedInRecently: status.checkedInRecently });
+                if (status) {
+                  setVisitStatus({ count: status.count, checkedInRecently: status.checkedInRecently });
+                  setCheckedIn((prev) => (prev.has(placeId) ? prev : new Set(prev).add(placeId)));
+                }
               })
               .catch(() => {});
           }}
@@ -500,6 +567,7 @@ export default function Map() {
       {showList && (
         <PlacesListSheet
           places={listVisible}
+          notes={listNotes}
           loading={loading}
           onSelect={focusPlace}
           onClose={() => setShowList(false)}

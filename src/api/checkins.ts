@@ -19,6 +19,32 @@ function firstRow(data: unknown): any | null {
   return null;
 }
 
+// The distinct places the signed-in user has ever checked into (own-row RLS). Used as a behavioral
+// taste signal on the map. Fails soft to an empty list.
+export async function getCheckedInPlaceIds(): Promise<string[]> {
+  const { data: u } = await supabase.auth.getUser();
+  if (!u.user) return [];
+  const res = await supabase.from("check_ins").select("place_id").eq("user_id", u.user.id);
+  if (res.error || !res.data) return [];
+  return Array.from(
+    new Set(res.data.map((r: any) => r.place_id).filter((p: any): p is string => typeof p === "string")),
+  );
+}
+
+// How many times the signed-in user has checked in across the last `days` (default a week). Used as
+// a taste signal ("eats out a lot"). Own-row RLS; fails soft to 0.
+export async function getRecentCheckInCount(days = 7): Promise<number> {
+  const { data: u } = await supabase.auth.getUser();
+  if (!u.user) return 0;
+  const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
+  const res = await supabase
+    .from("check_ins")
+    .select("id", { count: "exact", head: true })
+    .eq("user_id", u.user.id)
+    .gte("created_at", since);
+  return res.error ? 0 : res.count ?? 0;
+}
+
 // Record one visit through the server-side throttle. Returns the user's visit status for the
 // place, or null if not signed in.
 export async function checkIn(placeId: string): Promise<CheckInResult | null> {

@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from "react";
-import { View, Text, Pressable, ScrollView, StyleSheet } from "react-native";
+import { View, Text, Pressable, ScrollView, Image, StyleSheet } from "react-native";
 import { router, useFocusEffect } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -8,6 +8,7 @@ import { getMyProfile, getSocialCounts, type SocialCounts } from "../../src/api/
 import { getMyReviews, type MyReview } from "../../src/api/community";
 import { getMyPlaces, type MyPlaces as MyPlacesGroups } from "../../src/api/myPlaces";
 import { getNotifications } from "../../src/api/notifications";
+import { getMyTraits, type Trait } from "../../src/api/tasteTracking";
 import { formatRating } from "../../src/lib/formatRating";
 import type { PlaceState } from "../../src/domain/types";
 import { colors, radius, space } from "../../src/theme";
@@ -40,10 +41,14 @@ export default function Account() {
   const insets = useSafeAreaInsets();
   const [email, setEmail] = useState<string | null>(null);
   const [handle, setHandle] = useState<string | null>(null);
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [bio, setBio] = useState<string | null>(null);
   const [counts, setCounts] = useState<SocialCounts>({ followers: 0, following: 0, friends: 0 });
   const [reviews, setReviews] = useState<MyReview[]>([]);
   const [saved, setSaved] = useState<MyPlacesGroups>(emptyGroups);
   const [unread, setUnread] = useState(0);
+  const [traits, setTraits] = useState<Trait[]>([]);
+  const [openTrait, setOpenTrait] = useState<string | null>(null);
   // Hidden toggle: the profile shows either the user's reviews or their saved places.
   const [view, setView] = useState<"reviews" | "saved">("reviews");
   const [savedTab, setSavedTab] = useState<PlaceState>("go");
@@ -51,11 +56,12 @@ export default function Account() {
   useFocusEffect(
     useCallback(() => {
       supabase.auth.getUser().then(({ data }) => setEmail(data.user?.email ?? null));
-      getMyProfile().then((p) => setHandle(p?.username ?? null)).catch(() => {});
+      getMyProfile().then((p) => { setHandle(p?.username ?? null); setAvatarUrl(p?.avatarUrl ?? null); setBio(p?.bio ?? null); }).catch(() => {});
       getSocialCounts().then(setCounts).catch(() => {});
       getMyReviews().then(setReviews).catch(() => {});
       getMyPlaces().then(setSaved).catch(() => {});
       getNotifications().then((n) => setUnread(n.filter((x) => !x.read).length)).catch(() => {});
+      getMyTraits().then(setTraits).catch(() => {});
     }, []),
   );
 
@@ -74,17 +80,57 @@ export default function Account() {
       </View>
 
       <ScrollView contentContainerStyle={s.content}>
-        <View style={s.avatar}>
-          <Ionicons name="person" size={34} color={colors.accentPress} />
+        {avatarUrl ? (
+          <Image source={{ uri: avatarUrl }} style={s.avatar} />
+        ) : (
+          <View style={[s.avatar, s.avatarEmpty]}>
+            <Ionicons name="person" size={34} color={colors.accentPress} />
+          </View>
+        )}
+        <View style={s.handleRow}>
+          <Pressable
+            onPress={() => router.push("/titles-guide")}
+            hitSlop={10}
+            accessibilityRole="button"
+            accessibilityLabel="How titles work"
+          >
+            <Ionicons name="help-circle-outline" size={20} color={colors.muted} />
+          </Pressable>
+          <Text style={s.handle}>{handle ? `@${handle}` : "Set your handle in settings"}</Text>
         </View>
-        <Text style={s.handle}>{handle ? `@${handle}` : "Set your handle in settings"}</Text>
         {email && <Text style={s.email}>{email}</Text>}
+        {!!bio && <Text style={s.bio}>{bio}</Text>}
 
         <View style={s.stats}>
+          <Stat label="Reviews" value={reviews.length} />
           <Stat label="Followers" value={counts.followers} />
-          <Stat label="Following" value={counts.following} />
           <Stat label="Friends" value={counts.friends} />
         </View>
+
+        {traits.length > 0 && (
+          <View style={s.traits}>
+            <View style={s.traitBubbles}>
+              {traits.map((t) => {
+                const on = openTrait === t.id;
+                return (
+                  <Pressable
+                    key={t.id}
+                    onPress={() => setOpenTrait(on ? null : t.id)}
+                    style={[s.traitBubble, on && s.traitBubbleOn]}
+                    accessibilityRole="button"
+                    accessibilityLabel={`${t.name} trait. Tap to see how you got it.`}
+                  >
+                    <Text style={s.traitEmoji}>{t.emoji}</Text>
+                    <Text style={s.traitName}>{t.name}</Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+            {openTrait && (
+              <Text style={s.traitDetail}>{traits.find((t) => t.id === openTrait)?.detail}</Text>
+            )}
+          </View>
+        )}
 
         <Pressable style={s.actionRow} onPress={() => router.push("/tiktok-import")} accessibilityRole="button">
           <Ionicons name="logo-tiktok" size={20} color={colors.accentPress} />
@@ -180,13 +226,23 @@ const s = StyleSheet.create({
   badge: { position: "absolute", top: 4, right: 4, minWidth: 16, height: 16, borderRadius: 8, backgroundColor: colors.avoid, alignItems: "center", justifyContent: "center", paddingHorizontal: 3 },
   badgeTxt: { color: "#fff", fontSize: 10, fontWeight: "800" },
   content: { padding: space.xl, alignItems: "center", paddingBottom: space.xxl },
-  avatar: { width: 84, height: 84, borderRadius: 42, alignItems: "center", justifyContent: "center", backgroundColor: colors.surface, borderColor: colors.hair, borderWidth: 1 },
-  handle: { fontSize: 22, fontWeight: "800", color: colors.ink, marginTop: space.md },
+  avatar: { width: 84, height: 84, borderRadius: 42, backgroundColor: colors.surface },
+  avatarEmpty: { alignItems: "center", justifyContent: "center", borderColor: colors.hair, borderWidth: 1 },
+  handleRow: { flexDirection: "row", alignItems: "center", gap: space.xs, marginTop: space.md },
+  handle: { fontSize: 22, fontWeight: "800", color: colors.ink },
   email: { fontSize: 14, color: colors.muted, marginTop: 2 },
-  stats: { flexDirection: "row", gap: space.xl, marginTop: space.lg, marginBottom: space.xl },
+  bio: { fontSize: 14, color: colors.ink, marginTop: space.sm, textAlign: "center", lineHeight: 20, paddingHorizontal: space.md },
+  stats: { flexDirection: "row", gap: space.xl, marginTop: space.lg, marginBottom: space.lg },
   stat: { alignItems: "center" },
   statNum: { fontSize: 20, fontWeight: "800", color: colors.ink },
   statLabel: { fontSize: 12, color: colors.muted, fontWeight: "600", marginTop: 2 },
+  traits: { alignSelf: "stretch", alignItems: "center", marginBottom: space.xl },
+  traitBubbles: { flexDirection: "row", flexWrap: "wrap", justifyContent: "center", gap: space.xs },
+  traitBubble: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: space.md, paddingVertical: 7, borderRadius: radius.pill, backgroundColor: colors.accent },
+  traitBubbleOn: { backgroundColor: colors.accentPress },
+  traitEmoji: { fontSize: 13 },
+  traitName: { fontSize: 13, fontWeight: "800", color: colors.ink },
+  traitDetail: { fontSize: 13, color: colors.muted, textAlign: "center", marginTop: space.sm, lineHeight: 19, paddingHorizontal: space.md },
   actionRow: { alignSelf: "stretch", flexDirection: "row", alignItems: "center", gap: space.md, backgroundColor: colors.surface, borderColor: colors.hair, borderWidth: 1, borderRadius: radius.md, padding: space.md, marginBottom: space.lg },
   actionText: { flex: 1 },
   actionTitle: { fontSize: 15, fontWeight: "800", color: colors.ink },

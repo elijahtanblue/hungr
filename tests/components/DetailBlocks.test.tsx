@@ -124,7 +124,7 @@ test("CommunityBlock previews selected photos before posting", async () => {
   expect(screen.getByLabelText("Selected photo 2")).toBeTruthy();
 });
 
-test("CommunityBlock rejects unsupported selected photo formats before posting", async () => {
+test("CommunityBlock previews HEIC-family selected photos before posting", async () => {
   const onPickPhotos = jest.fn().mockResolvedValue([
     { uri: "file:///tmp/IMG_0001.HEIC", fileName: "IMG_0001.HEIC", mimeType: "image/heic" },
   ]);
@@ -140,9 +140,9 @@ test("CommunityBlock rejects unsupported selected photo formats before posting",
 
   await fireEvent.press(screen.getByText("Add photo"));
 
-  expect(await screen.findByText("Choose a JPG, PNG, or WebP photo.")).toBeTruthy();
-  expect(screen.queryByText("1 photo selected")).toBeNull();
-  expect(screen.queryAllByTestId("selected-review-photo")).toHaveLength(0);
+  expect(await screen.findByText("1 photo selected")).toBeTruthy();
+  expect(screen.queryByText("Choose a JPG, PNG, WebP, or HEIC photo.")).toBeNull();
+  expect(screen.getAllByTestId("selected-review-photo")).toHaveLength(1);
 });
 
 test("CommunityBlock does not show save failure or keep draft after only photo attach fails", async () => {
@@ -165,7 +165,7 @@ test("CommunityBlock does not show save failure or keep draft after only photo a
   await fireEvent.press(screen.getByLabelText("5 stars"));
   await fireEvent.press(screen.getByText("Post review"));
 
-  expect(await screen.findByText("Review posted, but the photos could not be attached.")).toBeTruthy();
+  expect(await screen.findByText("Review posted, but the photo could not be attached: storage duplicate")).toBeTruthy();
   expect(screen.queryByText("Could not save review. Try again.")).toBeNull();
   expect(screen.queryByDisplayValue("Good laksa.")).toBeNull();
 });
@@ -230,11 +230,11 @@ test("CommunityBlock lets a user edit and delete only their own review", async (
       reviews={[
         {
           id: "r1", userId: "u1", isMine: true, authorUsername: null, authorName: null,
-          body: "Original", rating: 4, upvotes: 0, mineUpvoted: false, createdAt: "2026-06-30T00:00:00Z", photos: [],
+          body: "Original", rating: 4, upvotes: 0, mineUpvoted: false, createdAt: "2026-06-30T00:00:00Z", edited: false, photos: [],
         },
         {
           id: "r2", userId: "u2", isMine: false, authorUsername: "kai", authorName: null,
-          body: "Not mine", rating: 5, upvotes: 0, mineUpvoted: false, createdAt: "2026-06-30T00:00:00Z", photos: [],
+          body: "Not mine", rating: 5, upvotes: 0, mineUpvoted: false, createdAt: "2026-06-30T00:00:00Z", edited: false, photos: [],
         },
       ]}
       onSaveReview={onSaveReview}
@@ -260,6 +260,23 @@ test("CommunityBlock lets a user edit and delete only their own review", async (
   expect(onDeleteReview).toHaveBeenCalledWith("r1");
 });
 
+test("CommunityBlock marks an edited review", async () => {
+  await render(
+    <CommunityBlock
+      tags={[]}
+      reviews={[
+        {
+          id: "r1", userId: "u1", isMine: false, authorUsername: "kai", authorName: null,
+          body: "Changed my mind.", rating: 4, upvotes: 0, mineUpvoted: false,
+          createdAt: "2026-06-30T00:00:00Z", edited: true, photos: [],
+        },
+      ]}
+    />,
+  );
+
+  expect(screen.getByText("Jun 30, 2026 · edited")).toBeTruthy();
+});
+
 test("CommunityBlock shows optional sentiment and place tags without requiring them", async () => {
   await render(
     <CommunityBlock
@@ -267,11 +284,11 @@ test("CommunityBlock shows optional sentiment and place tags without requiring t
       reviews={[
         {
           id: "r1", userId: "u1", isMine: false, authorUsername: "jenny", authorName: null,
-          body: "Would return.", rating: 5, state: "loved", upvotes: 0, mineUpvoted: false, createdAt: "2026-06-30T00:00:00Z", photos: [],
+          body: "Would return.", rating: 5, state: "loved", upvotes: 0, mineUpvoted: false, createdAt: "2026-06-30T00:00:00Z", edited: false, photos: [],
         },
         {
           id: "r2", userId: "u2", isMine: false, authorUsername: null, authorName: null,
-          body: "No sentiment yet.", rating: undefined, upvotes: 0, mineUpvoted: false, createdAt: "2026-06-30T00:00:00Z", photos: [],
+          body: "No sentiment yet.", rating: undefined, upvotes: 0, mineUpvoted: false, createdAt: "2026-06-30T00:00:00Z", edited: false, photos: [],
         },
       ]}
     />,

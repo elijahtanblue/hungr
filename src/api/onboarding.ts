@@ -18,3 +18,17 @@ export async function saveOnboarding(languages: string[], favoriteCuisines: stri
   const { error } = await supabase.rpc("save_onboarding", { langs: languages, cuisines: favoriteCuisines });
   if (error) throw error;
 }
+
+// The cuisines the signed-in user picked at onboarding. Powers behavioral, opt-in taste ranking.
+// Fails soft to an empty list so a read error never distorts results.
+export async function getFavoriteCuisines(): Promise<string[]> {
+  const { data: u } = await supabase.auth.getUser();
+  if (!u.user) return [];
+  const { data, error } = await supabase
+    .from("profiles")
+    .select("favorite_cuisines")
+    .eq("id", u.user.id)
+    .single();
+  if (error || !data || !Array.isArray(data.favorite_cuisines)) return [];
+  return data.favorite_cuisines as string[];
+}

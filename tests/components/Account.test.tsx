@@ -30,6 +30,7 @@ jest.mock("../../src/api/myPlaces", () => ({
   }),
 }));
 jest.mock("../../src/api/notifications", () => ({ getNotifications: jest.fn().mockResolvedValue([]) }));
+jest.mock("../../src/api/tasteTracking", () => ({ getMyTraits: jest.fn().mockResolvedValue([]) }));
 
 test("profile shows the handle and counts and opens settings", async () => {
   const { router } = require("expo-router");
@@ -54,14 +55,29 @@ test("opens the TikTok personal capture flow", async () => {
 test("toggles from reviews to saved places", async () => {
   await render(<Account />);
 
-  // Reviews view is the default.
-  expect(await screen.findByText("Reviews")).toBeTruthy();
+  // Reviews view is the default. ("Reviews" appears twice now: the stat label and the view toggle.)
+  expect((await screen.findAllByText("Reviews")).length).toBeGreaterThanOrEqual(1);
   expect(screen.queryByText("Gumshara Ramen")).toBeNull();
 
   await fireEvent.press(screen.getByText("Saved"));
 
   expect(await screen.findByText("Gumshara Ramen")).toBeTruthy();
   expect(screen.getByText("★ 4.4")).toBeTruthy();
+});
+
+test("taste trait bubbles render and reveal how you got them on tap", async () => {
+  const { getMyTraits } = require("../../src/api/tasteTracking");
+  (getMyTraits as jest.Mock).mockResolvedValueOnce([
+    { id: "protein_bro", name: "Protein Bro", emoji: "🥩", color: "#C0563D", how: "Save more meat.", earned: true, detail: "73% of your food is meat-forward spots." },
+  ]);
+  await render(<Account />);
+
+  const bubble = await screen.findByText("Protein Bro");
+  expect(bubble).toBeTruthy();
+  expect(screen.queryByText("73% of your food is meat-forward spots.")).toBeNull();
+
+  await fireEvent.press(bubble);
+  expect(await screen.findByText("73% of your food is meat-forward spots.")).toBeTruthy();
 });
 
 test("review cards show restaurant ratings and sentiment-colored chips", async () => {

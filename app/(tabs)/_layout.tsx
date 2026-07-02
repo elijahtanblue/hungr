@@ -3,7 +3,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useSession } from "../../src/lib/supabase";
 import { colors } from "../../src/theme";
 
-// Bottom tab bar: Map (core), Friends, Trends, Account. Golden active tint per DESIGN.md.
+// Bottom tab bar: Map (core), Friends, Feed, Account. Golden active tint per DESIGN.md.
 // Guards the whole group: a direct deep link here, or a session that expires or signs out,
 // bounces to sign-in instead of rendering a zombie unauthenticated tab tree.
 export default function TabsLayout() {
@@ -29,8 +29,8 @@ export default function TabsLayout() {
         options={{ title: "Friends", tabBarIcon: ({ color, size }) => <Ionicons name="people-outline" color={color} size={size} /> }}
       />
       <Tabs.Screen
-        name="trends"
-        options={{ title: "Trends", tabBarIcon: ({ color, size }) => <Ionicons name="trending-up-outline" color={color} size={size} /> }}
+        name="feed"
+        options={{ title: "Feed", tabBarIcon: ({ color, size }) => <Ionicons name="newspaper-outline" color={color} size={size} /> }}
       />
       <Tabs.Screen
         name="account"

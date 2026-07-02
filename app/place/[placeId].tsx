@@ -138,12 +138,14 @@ export default function PlaceDetail() {
       allowsMultipleSelection: true,
       selectionLimit: 4,
       quality: 0.82,
+      base64: true,
     });
     if (result.canceled) return [];
     return result.assets.map((asset) => ({
       uri: asset.uri,
       fileName: asset.fileName,
       mimeType: asset.mimeType,
+      base64: asset.base64,
       width: asset.width,
       height: asset.height,
     }));

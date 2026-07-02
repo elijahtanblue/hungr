@@ -45,6 +45,9 @@ yarn-error.*
 # founder seed secrets (local only)
 scripts/.env.seed
 
+# gstack audit / qa / security reports (local only)
+.gstack/
+
 # local brainstorming mockups
 .superpowers/
 scripts/security-audit.mjs

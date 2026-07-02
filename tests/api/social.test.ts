@@ -1,6 +1,6 @@
 import {
   followUser, requestFriend, respondFriend, searchUsers, listFriends, listFollowing, friendBeens,
-  getMyProfile, setUsername, setShareActivity, unfollowUser, unfriend, getSocialCounts,
+  getMyProfile, setUsername, setShareActivity, unfollowUser, unfriend, getSocialCounts, updateMyProfile,
 } from "../../src/api/social";
 import { supabase } from "../../src/lib/supabase";
 
@@ -46,6 +46,40 @@ test("getSocialCounts reads the counts RPC and coerces to numbers", async () => 
 test("getSocialCounts fails soft to zeros", async () => {
   (supabase.rpc as jest.Mock).mockResolvedValue({ data: null, error: new Error("down") });
   await expect(getSocialCounts()).resolves.toEqual({ followers: 0, following: 0, friends: 0 });
+});
+
+test("getMyProfile reads bio and avatar alongside the handle", async () => {
+  (supabase.auth.getUser as jest.Mock).mockResolvedValue({ data: { user: { id: "u1" } } });
+  const single = jest.fn().mockResolvedValue({
+    data: { username: "kai", display_name: "Kai", shares_activity: true, bio: "loves noodles", avatar_url: "https://x/y.jpg" },
+    error: null,
+  });
+  (supabase.from as jest.Mock).mockReturnValue({ select: () => ({ eq: () => ({ single }) }) });
+
+  await expect(getMyProfile()).resolves.toEqual({
+    username: "kai", displayName: "Kai", sharesActivity: true, bio: "loves noodles", avatarUrl: "https://x/y.jpg",
+  });
+});
+
+test("updateMyProfile writes only the provided fields, trimmed", async () => {
+  (supabase.auth.getUser as jest.Mock).mockResolvedValue({ data: { user: { id: "u1" } } });
+  const eq = jest.fn().mockResolvedValue({ error: null });
+  const update = jest.fn().mockReturnValue({ eq });
+  (supabase.from as jest.Mock).mockReturnValue({ update });
+
+  await expect(updateMyProfile({ bio: "  hi there  " })).resolves.toBe(true);
+  expect(update).toHaveBeenCalledWith({ bio: "hi there" });
+  expect(eq).toHaveBeenCalledWith("id", "u1");
+});
+
+test("updateMyProfile clears the bio when given an empty string", async () => {
+  (supabase.auth.getUser as jest.Mock).mockResolvedValue({ data: { user: { id: "u1" } } });
+  const eq = jest.fn().mockResolvedValue({ error: null });
+  const update = jest.fn().mockReturnValue({ eq });
+  (supabase.from as jest.Mock).mockReturnValue({ update });
+
+  await updateMyProfile({ bio: "   " });
+  expect(update).toHaveBeenCalledWith({ bio: null });
 });
 
 test("setShareActivity updates the caller's own profile flag", async () => {

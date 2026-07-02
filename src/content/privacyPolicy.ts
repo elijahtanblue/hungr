@@ -3,7 +3,7 @@
 export const PRIVACY_POLICY_MARKDOWN = `# Privacy Policy
 
 **Effective date:** 29 June 2026  
-**Last updated:** 29 June 2026
+**Last updated:** 3 July 2026
 
 This Privacy Policy explains how **[Hungr legal entity name]** ("hungr", "we", "us", or "our")
 collects, uses, discloses, stores, and protects personal information when you use the hungr
@@ -139,8 +139,11 @@ If you use social features, we may collect:
 - names, usernames, handles, or links you provide to find or invite friends;
 - contact information you choose to provide for invitations.
 
-We will not access your device contacts unless you grant device-level permission. If we later
-offer contact import, we will explain what is imported before collection.
+With your device-level permission, hungr can help you find friends who already use the app. When
+you use this, contact identifiers such as email addresses and phone numbers are hashed on your
+device, and only those hashes are sent to our servers to check for matches. We do not receive or
+store your raw address book, and we do not upload your contacts. If you do not grant permission,
+we do not access your device contacts.
 
 ### 3.7 Device, log, and usage information
 

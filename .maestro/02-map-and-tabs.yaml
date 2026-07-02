@@ -26,7 +26,7 @@ name: Map, preferences, and tabs
 # Bottom tabs.
 - tapOn: "Friends"
 - assertVisible: "No check-ins yet"
-- tapOn: "Trends"
-- assertVisible: "Near me"
+- tapOn: "Feed"
+- assertVisible: "Local trends"
 - tapOn: "Account"
 - assertVisible: "Sign out"

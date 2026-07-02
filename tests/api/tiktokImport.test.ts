@@ -33,7 +33,7 @@ const candidate = {
 
 test("resolveTikTokLink invokes the tiktok import edge function with location bias", async () => {
   (supabase.functions.invoke as jest.Mock).mockResolvedValue({
-    data: { source, dishTags: ["steak"], candidates: [candidate] },
+    data: { source, dishTags: ["sydneyfood", "steak"], candidates: [candidate] },
     error: null,
   });
 
@@ -55,7 +55,7 @@ test("resolveTikTokLink rejects malformed function responses", async () => {
 test("saveTikTokCandidate writes the confirmed place and source context through RPC", async () => {
   (supabase.rpc as jest.Mock).mockResolvedValue({ data: true, error: null });
 
-  await expect(saveTikTokCandidate(source, candidate, ["steak"])).resolves.toBe(true);
+  await expect(saveTikTokCandidate(source, candidate, ["sydneyfood", "steak"])).resolves.toBe(true);
 
   expect(supabase.rpc).toHaveBeenCalledWith("save_tiktok_source", {
     target_place_id: "place-1",
@@ -64,7 +64,7 @@ test("saveTikTokCandidate writes the confirmed place and source context through 
     input_creator_handle: "Creator",
     input_caption: "Best steak night at The Gidley",
     input_evidence: "TikTok caption mentions The Gidley.",
-    input_dish_tags: ["steak"],
+    input_dish_tags: ["sydneyfood", "steak"],
     input_confidence: 0.99,
   });
 });

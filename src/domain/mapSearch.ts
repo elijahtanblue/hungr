@@ -1,4 +1,5 @@
 export type MapSearchMode = "typed" | "nearby";
+export type SearchSubmitMode = MapSearchMode | "ai";
 export type SearchRegion = { latitude: number; longitude: number; latitudeDelta: number; longitudeDelta: number };
 
 export function searchTextForAction(mode: MapSearchMode, typedQuery: string): string {
@@ -14,4 +15,8 @@ export function listTitleForSearchMode(mode: MapSearchMode, typedQuery: string):
 
 export function nearbySearchRegion(currentMapRegion: SearchRegion, _deviceRegion?: SearchRegion): SearchRegion {
   return currentMapRegion;
+}
+
+export function queryAfterSubmit(mode: SearchSubmitMode, currentQuery: string): string {
+  return mode === "ai" ? "" : currentQuery;
 }

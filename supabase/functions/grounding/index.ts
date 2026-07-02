@@ -4,13 +4,14 @@
 // Auth gated and rate limited (Gemini is paid, so the limit is tighter than Places).
 import { guard } from "../_shared/guard.ts";
 import { readJsonObject } from "../_shared/request.ts";
+import { AI_CHAT_STYLE_GUARDRAILS, normalizeAiCopyStyle } from "../_shared/ai_style.ts";
 
 const KEY = Deno.env.get("GEMINI_KEY")!;
 const MAX_PER_MIN = 20;
 
 export function shapeGrounded(raw: any): { text: string; sources: string[] } {
   const candidate = raw.candidates?.[0];
-  const text = candidate?.content?.parts?.[0]?.text ?? "";
+  const text = normalizeAiCopyStyle(candidate?.content?.parts?.[0]?.text ?? "");
   // Grounding metadata lives on the candidate, not the top level. Source URIs come from
   // groundingChunks (web.uri for search, maps.uri / retrievedContext.uri for Maps grounding).
   const chunks = candidate?.groundingMetadata?.groundingChunks ?? [];
@@ -18,6 +19,14 @@ export function shapeGrounded(raw: any): { text: string; sources: string[] } {
     .map((c: any) => c?.web?.uri ?? c?.maps?.uri ?? c?.retrievedContext?.uri)
     .filter((u: unknown): u is string => typeof u === "string");
   return { text, sources };
+}
+
+export function buildGroundingPrompt(placeQuery: string): string {
+  return [
+    AI_CHAT_STYLE_GUARDRAILS,
+    "",
+    `What is ${placeQuery.slice(0, 160)} known for?`,
+  ].join("\n");
 }
 
 export default async function handler(req: Request): Promise<Response> {
@@ -36,7 +45,7 @@ export default async function handler(req: Request): Promise<Response> {
       method: "POST",
       headers: { "Content-Type": "application/json", "x-goog-api-key": KEY },
       body: JSON.stringify({
-        contents: [{ parts: [{ text: `What is ${placeQuery.slice(0, 160)} known for?` }] }],
+        contents: [{ parts: [{ text: buildGroundingPrompt(placeQuery) }] }],
         tools: [{ googleMaps: {} }],
       }),
     },
