@@ -52,7 +52,8 @@
     "start": "expo start",
     "ios": "expo run:ios",
     "web": "expo start --web",
-    "test": "jest"
+    "test": "jest",
+    "gen:privacy": "node scripts/gen-privacy.mjs"
   },
   "jest": {
     "preset": "jest-expo",

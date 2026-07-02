@@ -19,7 +19,7 @@ information that applies to the features you use.
 The controller or responsible entity for your personal information is:
 
 **Hungr, operated by Elijah Tan**
-**Address: Unit 9 37-43 Forest Road, Hurstville, New South Wales,**
+**Address: Unit 9, 37-43 Forest Road, Hurstville, New South Wales 2220, Australia**
 **Email: elijahtanshian@gmail.com**
 **Website: https://usehungr.app**
 
@@ -31,13 +31,15 @@ before making the service available in that region.
 
 - We collect account, profile, app usage, location, food preference, saved place, review, photo,
   community, and device information.
-- We may collect sensitive information, including ethnicity, heritage, cuisine background,
-  language, dietary restrictions, or similar identity/provenance information, but only if you
-  choose to provide it and give any required consent.
-- Ethnicity, heritage, and similar provenance fields are optional. You can use core hungr
-  features without providing them.
-- We do not infer ethnicity, race, heritage, or national origin from your name, photos, location,
-  contacts, social graph, review language, Google data, or other indirect signals.
+- We may collect provenance and dietary information, including the languages you speak, your
+  cuisine background or expertise, and dietary restrictions or allergies, but only if you choose
+  to provide it and give any required consent. Some of this, such as religious or health-related
+  dietary needs, may be sensitive information.
+- These provenance and dietary fields are optional. You can use core hungr features without
+  providing them.
+- We do not collect ethnicity, race, heritage, or national origin, and we do not infer them from
+  your name, photos, location, contacts, social graph, review language, Google data, or other
+  indirect signals.
 - We do not sell your personal information. We do not use or share your personal information for
   cross-context behavioral advertising unless we first update this policy and provide required
   notices and choices.
@@ -103,20 +105,19 @@ Depending on the feature and your settings, user-generated content may be visibl
 friends, followers, creators, restaurants, or the public. Do not post information you do not want
 others to see.
 
-### 3.5 Optional sensitive provenance information
+### 3.5 Optional provenance and dietary information
 
-hungr's planned provenance features may let users self-declare information that helps explain
-why a review may be relevant for a cuisine or community, such as:
+hungr's provenance features may let users self-declare information that helps explain why a review
+may be relevant for a cuisine or community, such as:
 
-- ethnicity, race, heritage, ancestry, national origin, or cultural background;
+- the languages you speak;
 - cuisine background, cuisine expertise, cuisines you grew up eating, or cuisines you know well;
-- languages;
-- home city, hometown, region, country, or migration background;
+- home city, hometown, region, or country;
 - dietary restrictions, allergies, religious dietary practices, or health-related food needs;
 - creator credentials, food experience, or community affiliations.
 
-Some of this information may be sensitive personal information or special category data under
-privacy laws.
+Some of this information, such as religious or health-related dietary needs, may be sensitive
+personal information or special category data under privacy laws.
 
 We process this information only where you provide it voluntarily and, where required, give
 explicit consent. Providing it is optional. You can decline, remove, or change it in your account
@@ -124,9 +125,9 @@ settings, or contact us to withdraw consent. Withdrawing consent will not affect
 already occurred lawfully before withdrawal, but we will stop using the withdrawn information for
 future provenance, ranking, recommendation, or display features.
 
-We do not infer ethnicity, race, heritage, or similar protected characteristics from indirect
-signals. We do not ask users to prove ethnicity or heritage. We do not use ethnicity or heritage
-to decide whether you may use hungr.
+We do not collect ethnicity, race, heritage, ancestry, or national origin, and we do not infer
+them from indirect signals. We do not use any provenance or dietary information to decide whether
+you may use hungr.
 
 ### 3.6 Friends, followers, social activity, and contacts
 
@@ -205,7 +206,7 @@ We use personal information to:
 - comply with law, enforce our terms, and protect rights, safety, and property;
 - analyze and improve the service, including reliability, usability, and performance.
 
-We use sensitive provenance information only for the purposes disclosed when you provide it, such
+We use provenance and dietary information only for the purposes disclosed when you provide it, such
 as profile display, cuisine-relevance signals, provenance labels, taste-calibrated ranking, review
 context, creator credibility, or safety and compliance controls.
 
@@ -222,7 +223,7 @@ We do not use automated processing to make decisions that produce legal or simil
 effects about you. Recommendations and rankings are food discovery features, not eligibility,
 employment, credit, housing, health care, insurance, or legal decisions.
 
-We do not use sensitive provenance information to train a general-purpose AI model unless we first
+We do not use provenance or dietary information to train a general-purpose AI model unless we first
 obtain any consent required by law and provide clear notice. We may use de-identified, aggregated,
 or consented first-party data to improve hungr's own food discovery features.
 
@@ -258,7 +259,7 @@ We do not share personal information for cross-context behavioral advertising or
 advertising as those terms are used under applicable US state privacy laws, unless we first update
 this policy and provide legally required opt-out choices.
 
-We do not use sensitive provenance information, precise location, or review content for third-party
+We do not use provenance or dietary information, precise location, or review content for third-party
 advertising profiles.
 
 If we use analytics or attribution tools, we use them to understand and improve hungr. If an
@@ -272,8 +273,8 @@ You can:
 - decline location permission or change it in your device settings;
 - use a selected city or map area instead of precise location where supported;
 - edit or delete saved places, cuisine preferences, reviews, photos, tags, and profile fields;
-- choose whether to provide sensitive provenance information;
-- withdraw consent for optional sensitive provenance information;
+- choose whether to provide provenance or dietary information;
+- withdraw consent for optional provenance or dietary information;
 - control whether certain profile, review, friend, or provenance information is visible to others,
   where the app provides visibility settings;
 - unsubscribe from marketing emails;
@@ -295,9 +296,9 @@ unless a longer period is required or permitted by law.
 | Search and API logs | Short operational periods where needed for debugging, rate limiting, security, and cost controls |
 | Saved places and place states | Until you delete them or delete your account |
 | Reviews, photos, tags, and community content | Until you delete them, delete your account, or we remove them under our policies |
-| Sensitive provenance information | Until you remove it, withdraw consent, delete your account, or the purpose expires |
+| Provenance and dietary information | Until you remove it, withdraw consent, delete your account, or the purpose expires |
 | Google review text, Google photos, and Google AI summaries | Not stored in our database |
-| Backups | Deleted on a rolling schedule, usually within [30-90] days, unless retained for security or legal reasons |
+| Backups | Deleted on a rolling schedule, usually within 7 days, unless retained for security or legal reasons |
 | Legal records | As long as needed to comply with law, resolve disputes, and enforce agreements |
 
 If you delete your account, we will delete or de-identify personal information associated with your
@@ -356,7 +357,7 @@ Depending on where you live, you may have rights to:
 - appeal our response to a privacy request;
 - lodge a complaint with a privacy regulator.
 
-To exercise rights, contact us at **[privacy@usehungr.app]**. We may need to verify your identity
+To exercise rights, contact us at **elijahtanshian@gmail.com**. We may need to verify your identity
 before fulfilling a request. You may also use an authorized agent where applicable law allows it.
 
 We will not discriminate against you for exercising privacy rights.
@@ -367,11 +368,11 @@ If the Australian Privacy Act 1988 and Australian Privacy Principles apply, this
 additional information for users in Australia.
 
 We collect personal information only where reasonably necessary for our functions and activities.
-We collect sensitive information, such as racial or ethnic origin, only with consent unless another
-legal exception applies.
+We collect sensitive information, such as religious or health-related dietary needs, only with
+consent unless another legal exception applies. We do not collect racial or ethnic origin.
 
 You may request access to or correction of personal information we hold about you. You may complain
-about how we handle personal information by contacting **[privacy@usehungr.app]**. We will respond
+about how we handle personal information by contacting **elijahtanshian@gmail.com**. We will respond
 within a reasonable period. If you are not satisfied, you may contact the Office of the Australian
 Information Commissioner.
 
@@ -383,7 +384,7 @@ If GDPR, UK GDPR, or similar law applies, our legal bases may include:
 | --- | --- |
 | Account creation, login, core app features, saved places, reviews, and support | Contract necessity |
 | Location-based search and map features | Contract necessity or consent, depending on device permission and local law |
-| Optional sensitive provenance information, such as ethnicity or heritage | Explicit consent and, where relevant, substantial public interest or other applicable Article 9 condition only if clearly identified |
+| Optional provenance and dietary information (languages, cuisine background, dietary or religious food needs) | Consent; for any special-category data, such as religious or health-related dietary needs, explicit consent or another applicable Article 9 condition only if clearly identified |
 | Service improvement, security, fraud prevention, analytics, and abuse controls | Legitimate interests, balanced against your rights |
 | Marketing emails | Consent or legitimate interests where permitted |
 | Legal compliance, safety, and rights enforcement | Legal obligation or legitimate interests |
@@ -404,13 +405,13 @@ In the past 12 months, depending on the features used, we may have collected:
 | --- | --- | --- | --- |
 | Identifiers | Name, email, username, account IDs, IP address | You, auth providers, device logs | Account, support, security, communications |
 | Customer records information | Account contact details and support records | You | Support, legal, account operations |
-| Protected classification or sensitive characteristics | Optional self-declared ethnicity, race, heritage, national origin, language, dietary or religious food practices | You only | Optional provenance, personalization, display, ranking, compliance |
+| Protected classification or sensitive characteristics | Optional self-declared languages, cuisine background, and dietary or religious food practices | You only | Optional provenance, personalization, display, ranking, compliance |
 | Commercial information | Saved places, restaurant interactions, creator or partner interactions, subscriptions if offered | You, app stores, payment providers | Service delivery, records, support |
 | Internet or network activity | App usage, logs, feature interactions, diagnostics | Your device, service logs | Security, debugging, analytics, improvement |
 | Geolocation data | Foreground location, selected map area, city, distance to places | Your device, your input | Nearby search, map, recommendations |
 | Audio, electronic, visual, or similar information | Food photos, profile photos, submitted images, support messages | You | Community content, profile, support |
 | Inferences | Cuisine preferences, taste profile, recommendation signals | Your app activity and first-party content | Personalization and food discovery |
-| Sensitive personal information | Precise geolocation, account login information handled by auth providers, optional racial or ethnic origin, dietary restrictions, health-related allergy information if provided | You, device permission, auth providers | Service delivery, security, optional provenance |
+| Sensitive personal information | Precise geolocation, account login information handled by auth providers, and optional dietary restrictions, religious food practices, or health-related allergy information if provided | You, device permission, auth providers | Service delivery, security, optional provenance |
 
 ### Disclosures
 
@@ -435,7 +436,7 @@ Subject to legal limits, California and other eligible US residents may request 
 correct, delete, obtain a portable copy, opt out of sale/sharing/targeted advertising, limit
 sensitive personal information use, and appeal certain decisions.
 
-To exercise rights, contact **[privacy@usehungr.app]**.
+To exercise rights, contact **elijahtanshian@gmail.com**.
 
 ## 18. Do Not Track and Global Privacy Control
 
